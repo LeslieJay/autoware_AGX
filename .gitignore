@@ -1,0 +1,8 @@
+# Ignore everything in this folder and all subdirectories
+build 
+log
+install
+
+# EXCEPT: Re-include the necessary files.
+# !README.md
+# !.gitignore

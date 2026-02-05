@@ -1,0 +1,111 @@
+mission_loop:
+  ros__parameters:
+
+    arrive_distance_threshold: 0.8
+    arrive_speed_threshold: 0.05
+    arrive_time_threshold: 2.0
+
+    points: ["A", "B"]
+
+    points.A.x: 3713.681884765625
+    points.A.y: 73694.109375
+    points.A.z: 0.0
+    points.A.orientation_x: 0.0
+    points.A.orientation_y: 0.0
+    points.A.orientation_z: 0.8606026593742371
+    points.A.orientation_w: 0.50927699994992
+    points.A.wait_time: 3.0
+
+    points.B.x: 3774.931884765625
+    points.B.y: 73728.7265625
+    points.B.z: 0.0
+    points.B.orientation_x: 3.14
+    points.B.orientation_y: 3.14
+    points.B.orientation_z: -0.5434077341475629
+    points.B.orientation_w: 0.8394689002390807
+    points.B.wait_time: 5.0
+
+
+
+# 起点：
+# header:
+#   stamp:
+#     sec: 1765856277
+#     nanosec: 432095990
+#   frame_id: map
+# child_frame_id: base_link
+# pose:
+#   pose:
+#     position:
+#       x: 3768.383056640625
+#       y: 73694.5390625
+#       z: 19.646
+#     orientation:
+#       x: -0.0012984537818303092
+#       y: -0.0003396615420987591
+#       z: -0.9674461238584008
+#       w: 0.253073499361686
+
+# A 点
+# header:
+#   stamp:
+#     sec: 1765856318
+#     nanosec: 880146773
+#   frame_id: map
+# pose:
+#   position:
+#     x: 3713.681884765625
+#     y: 73694.109375
+#     z: 0.0
+#   orientation:
+#     x: 0.0
+#     y: 0.0
+#     z: 0.8606026593742371
+#     w: 0.50927699994992
+# ---
+
+# B 点
+
+# header:
+#   stamp:
+#     sec: 1765856384
+#     nanosec: 350451306
+#   frame_id: map
+# pose:
+#   position:
+#     x: 3774.931884765625
+#     y: 73728.7265625
+#     z: 0.0
+#   orientation:
+#     x: 0.0
+#     y: 0.0
+#     z: -0.5434077341475629
+#     w: 0.8394689002390807
+# ---
+
+
+# ros2 topic pub -1 /planning/mission_planning/goal geometry_msgs/PoseStamped "header:
+#   frame_id: 'map'
+# pose:
+#   position:
+#     x: 3774.931884765625
+#     y: 73728.7265625
+#     z: 0.0
+#   orientation:
+#     x: 0.0
+#     y: 0.0
+#     z: -0.5434077341475629
+#     w: 0.8394689002390807"
+
+# ros2 service call /api/routing/set_route_points \
+# autoware_adapi_v1_msgs/srv/SetRoutePoints \
+# "{route_points: [
+#   {
+#     header: {frame_id: 'map'},
+#     pose: {
+#       position: {x: 3713.681884765625, y: 73694.109375, z: 0.0},
+#       orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}
+#     }
+#   }
+# ]}"
+

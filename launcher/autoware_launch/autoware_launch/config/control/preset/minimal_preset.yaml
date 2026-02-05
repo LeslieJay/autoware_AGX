@@ -1,0 +1,37 @@
+launch:
+  # controller - SIMPLIFIED
+  - arg:
+      name: trajectory_follower_mode
+      default: trajectory_follower_node
+      # option: trajectory_follower_node, smart_mpc_trajectory_follower, none
+
+  # external_cmd selector/converter - KEEP ESSENTIAL
+  - arg:
+      name: launch_external_cmd_selector
+      default: "true"  # Keep for command routing
+  - arg:
+      name: launch_external_cmd_converter
+      default: "true"  # Keep for command conversion
+
+  # optional control checkers - MINIMAL
+  - arg:
+      name: launch_lane_departure_checker
+      default: "false"  # Disabled for minimal setup
+  - arg:
+      name: launch_control_validator
+      default: "false"  # Disabled for performance
+  - arg:
+      name: launch_autonomous_emergency_braking
+      default: "false"  # Disabled (no perception available)
+  - arg:
+      name: launch_collision_detector
+      default: "false"  # Disabled (no perception available)
+  - arg:
+      name: launch_obstacle_collision_checker
+      default: "false"  # Disabled
+  - arg:
+      name: launch_predicted_path_checker
+      default: "false"  # Disabled
+  - arg:
+      name: launch_control_evaluator
+      default: "false"  # Disabled for performance

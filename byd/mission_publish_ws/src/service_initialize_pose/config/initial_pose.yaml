@@ -1,0 +1,23 @@
+# Initial pose configuration for initialize_pose_node
+# This node will initialize the vehicle's pose using the specified position and orientation
+
+initialize_pose_node:
+  ros__parameters:
+    frame_id: 'map'
+    
+    # Position coordinates
+    x: 14.458791732788086
+    y: 243.08290100097656
+    z: 3.646
+    
+    # Orientation (quaternion)
+    orientation_x: 0.008823437736687216
+    orientation_y: 0.008412466341233832
+    orientation_z: -0.7237074764776226
+    orientation_w: 0.6899991781494784
+    
+    # If true, use auto-initialization (GNSS-based, no pose needed)
+    # If false, use the pose specified above
+    auto_initialize: false
+
+
