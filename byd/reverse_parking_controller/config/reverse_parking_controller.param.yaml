@@ -1,0 +1,31 @@
+/**:
+  ros__parameters:
+    # 控制频率
+    control_rate: 30.0           # Hz
+
+    # 车辆参数
+    wheel_base: 1.0              # 轴距 [m]
+
+    # Pure Pursuit 横向控制参数
+    lookahead_distance: 1.0      # 基础前视距离 [m]
+    min_lookahead_distance: 0.5  # 最小前视距离 [m]
+    lookahead_ratio: 2.0         # 前视距离 = ratio * |velocity|
+
+    # PID 纵向控制参数
+    pid:
+      kp: 1.0                   # 比例增益
+      ki: 0.1                   # 积分增益
+      kd: 0.05                  # 微分增益
+      integral_max: 5.0         # 积分上限
+
+    # 加速度限幅
+    max_acceleration: 1.0        # 最大加速度 [m/s^2]
+    max_deceleration: -2.0       # 最大减速度 [m/s^2]
+
+    # 到达终点判定阈值
+    goal_distance_threshold: 0.3 # 距离阈值 [m]
+    goal_yaw_threshold: 0.1      # 航向阈值 [rad]
+    stop_velocity_threshold: 0.05 # 停车速度阈值 [m/s]
+
+    # 转向限幅
+    max_steering_angle: 0.6      # 最大转向角 [rad] (~34°)

@@ -95,7 +95,8 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
   const auto & data = avoidance_data_;
 
   if (data.target_objects.empty()) {
-    RCLCPP_DEBUG(logger_, "no empty objects");
+    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000, 
+      "[AvoidByLC] Module NOT activated: No target objects detected");
     return false;
   }
 
@@ -115,7 +116,9 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
     std::accumulate(object_parameters.begin(), object_parameters.end(), 0UL, count_target_object);
 
   if (num_of_avoidance_targets < 1) {
-    RCLCPP_DEBUG(logger_, "no avoidance target");
+    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000,
+      "[AvoidByLC] Module NOT activated: No avoidance target found (total_objects=%zu, avoidance_required=0)",
+      data.target_objects.size());
     return false;
   }
 
@@ -127,10 +130,20 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
     getCommonParam().vehicle_info, getEgoPose(),
     std::max(minimum_lane_change_length, minimum_avoid_length), calcLateralOffset());
 
-  RCLCPP_DEBUG(
-    logger_, "Conditions ? %f, %f, %f", nearest_object.longitudinal, minimum_lane_change_length,
-    minimum_avoid_length);
-  return nearest_object.longitudinal > std::max(minimum_lane_change_length, minimum_avoid_length);
+  const auto required_distance = std::max(minimum_lane_change_length, minimum_avoid_length);
+  const bool distance_check = nearest_object.longitudinal > required_distance;
+  
+  if (!distance_check) {
+    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000,
+      "[AvoidByLC] Module NOT activated: Insufficient distance (obj_dist=%.2f < required=%.2f [LC=%.2f, Avoid=%.2f])",
+      nearest_object.longitudinal, required_distance, minimum_lane_change_length, minimum_avoid_length);
+  } else {
+    RCLCPP_INFO_THROTTLE(logger_, *clock_, 5000,
+      "[AvoidByLC] Module ACTIVATED: targets=%lu, obj_dist=%.2f > required=%.2f",
+      num_of_avoidance_targets, nearest_object.longitudinal, required_distance);
+  }
+  
+  return distance_check;
 }
 
 bool AvoidanceByLaneChange::specialExpiredCheck() const

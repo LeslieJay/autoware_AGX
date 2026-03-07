@@ -485,7 +485,15 @@ void VelocitySmootherNode::onCurrentTrajectory(const Trajectory::ConstSharedPtr 
 
   // Set 0 at the end of the trajectory
   input_points.back().longitudinal_velocity_mps = 0.0;
-
+  // Log input points velocity for debug
+  {
+    std::stringstream ss;
+    ss << "input_points velocity: ";
+    for (size_t i = 0; i < input_points.size(); ++i) {
+      ss << "[" << i << "]=" << input_points[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000, "%s", ss.str().c_str());
+  }
   // calculate prev closest point
   if (!prev_output_.empty()) {
     current_closest_point_from_prev_output_ = calcProjectedTrajectoryPointFromEgo(prev_output_);
@@ -513,6 +521,26 @@ void VelocitySmootherNode::onCurrentTrajectory(const Trajectory::ConstSharedPtr 
     output, current_odometry_ptr_->twist.twist.linear.x, current_odometry_ptr_->pose.pose,
     node_param_.ego_nearest_dist_threshold, node_param_.ego_nearest_yaw_threshold,
     node_param_.post_resample_param, false);
+
+  // Log output points velocity for debug
+  {
+    std::stringstream ss;
+    ss << "output velocity: ";
+    for (size_t i = 0; i < output.size(); ++i) {
+      ss << "[" << i << "]=" << output[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000, "%s", ss.str().c_str());
+  }
+
+  // Log output_resampled points velocity for debug
+  {
+    std::stringstream ss;
+    ss << "output_resampled velocity: ";
+    for (size_t i = 0; i < output_resampled.size(); ++i) {
+      ss << "[" << i << "]=" << output_resampled[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000, "%s", ss.str().c_str());
+  }
 
   // Set 0 at the end of the trajectory
   if (!output_resampled.empty()) {
@@ -606,7 +634,23 @@ TrajectoryPoints VelocitySmootherNode::calcTrajectoryVelocity(
   if (!smoothVelocity(traj_extracted, traj_extracted_closest, output)) {
     return prev_output_;
   }
-
+  // Log traj_extracted and output velocity for debug
+  {
+    std::stringstream ss;
+    ss << "traj_extracted velocity: ";
+    for (size_t i = 0; i < traj_extracted.size(); ++i) {
+      ss << "[" << i << "]=" << traj_extracted[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000, "%s", ss.str().c_str());
+  }
+  {
+    std::stringstream ss;
+    ss << "output velocity: ";
+    for (size_t i = 0; i < output.size(); ++i) {
+      ss << "[" << i << "]=" << output[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO_THROTTLE(get_logger(), *clock_, 1000, "%s", ss.str().c_str());
+  }
   return output;
 }
 
@@ -623,6 +667,17 @@ bool VelocitySmootherNode::smoothVelocity(
   // Calculate initial motion for smoothing
   const auto [initial_motion, type] = calcInitialMotion(input, input_closest);
 
+  // Print initial motion for debug
+  // InitializeType {
+  //   EGO_VELOCITY = 0,
+  //   LARGE_DEVIATION_REPLAN = 1,
+  //   ENGAGING = 2,
+  //   NORMAL = 3,
+  // };
+  RCLCPP_INFO(
+    get_logger(), "[初始] initial_motion: vel=%.3f m/s, acc=%.3f m/s2, type=%u",
+    initial_motion.vel, initial_motion.acc, static_cast<unsigned int>(type));
+
   // Lateral acceleration limit
   constexpr bool enable_smooth_limit = true;
   constexpr bool use_resampling = true;
@@ -632,11 +687,21 @@ bool VelocitySmootherNode::smoothVelocity(
           input, initial_motion.vel, initial_motion.acc, enable_smooth_limit, use_resampling)
       : input;
 
+  // Print after lateral acceleration limit for debug
+  RCLCPP_INFO(
+    get_logger(), "[Lateral acceleration limit] initial_motion: vel=%.3f m/s, acc=%.3f m/s2",
+    initial_motion.vel, initial_motion.acc);
+
   // Steering angle rate limit (Note: set use_resample = false since it is resampled above)
   const auto traj_steering_rate_limited =
     node_param_.enable_steering_rate_limit
       ? smoother_->applySteeringRateLimit(traj_lateral_acc_filtered, false)
       : traj_lateral_acc_filtered;
+
+  // Print after steering angle rate limit for debug
+  RCLCPP_INFO(
+    get_logger(), "[Steering angle rate limit] initial_motion: vel=%.3f m/s, acc=%.3f m/s2",
+    initial_motion.vel, initial_motion.acc);
 
   // Resample trajectory with ego-velocity based interval distance
   auto traj_resampled = smoother_->resampleTrajectory(

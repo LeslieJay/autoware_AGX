@@ -1,0 +1,86 @@
+# Reverse Parking Controller
+
+## 概述
+
+倒车停车路径跟踪控制器，订阅 `reverse_parking_planner` 规划的轨迹，使用 **Pure Pursuit + PID** 算法进行路径跟踪，将控制指令发布到 `vehicle_cmd_gate` 节点的 `input/external` 话题。
+
+## 系统架构
+
+```
+reverse_parking_planner ──(trajectory)──> reverse_parking_controller ──(control_cmd)──> vehicle_cmd_gate
+                                               │                            │
+                                    odometry ──┘                            ├── gear_cmd
+                                                                            ├── turn_indicators_cmd
+                                                                            └── hazard_lights_cmd
+```
+
+## 话题接口
+
+### 订阅话题
+
+| 话题名 | 消息类型 | 说明 |
+|--------|----------|------|
+| `~/input/trajectory` | `autoware_planning_msgs/msg/Trajectory` | 倒车规划器输出的轨迹 |
+| `~/input/odometry` | `nav_msgs/msg/Odometry` | 车辆里程计 |
+
+### 发布话题（→ vehicle_cmd_gate input/external）
+
+| 话题名 | 消息类型 | 说明 |
+|--------|----------|------|
+| `~/output/control_cmd` | `autoware_control_msgs/msg/Control` | 转向+纵向控制指令 |
+| `~/output/gear_cmd` | `autoware_vehicle_msgs/msg/GearCommand` | 前进/倒车档位 |
+| `~/output/turn_indicators_cmd` | `autoware_vehicle_msgs/msg/TurnIndicatorsCommand` | 转向灯 |
+| `~/output/hazard_lights_cmd` | `autoware_vehicle_msgs/msg/HazardLightsCommand` | 危险警示灯 |
+| `~/debug/markers` | `visualization_msgs/msg/MarkerArray` | 调试可视化 |
+
+## 参数说明
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `control_rate` | double | 30.0 | 控制频率 [Hz] |
+| `wheel_base` | double | 1.0 | 轴距 [m] |
+| `lookahead_distance` | double | 1.0 | 基础前视距离 [m] |
+| `min_lookahead_distance` | double | 0.5 | 最小前视距离 [m] |
+| `lookahead_ratio` | double | 2.0 | 前视距离速度比例系数 |
+| `pid.kp` | double | 1.0 | PID 比例增益 |
+| `pid.ki` | double | 0.1 | PID 积分增益 |
+| `pid.kd` | double | 0.05 | PID 微分增益 |
+| `max_acceleration` | double | 1.0 | 最大加速度 [m/s²] |
+| `max_deceleration` | double | -2.0 | 最大减速度 [m/s²] |
+| `goal_distance_threshold` | double | 0.3 | 终点距离判定阈值 [m] |
+| `goal_yaw_threshold` | double | 0.1 | 终点航向判定阈值 [rad] |
+| `max_steering_angle` | double | 0.6 | 最大转向角 [rad] |
+
+## 控制算法
+
+### 横向控制 - Pure Pursuit
+- 根据当前速度自适应调整前视距离：`Ld = max(min_Ld, ratio * |v|)`
+- 在车体坐标系下计算目标点方位角 α
+- 转向角：`δ = atan(2L·sin(α) / Ld)`
+- 倒车时自动反转转向角方向
+
+### 纵向控制 - PID
+- 速度误差 PID 控制
+- 积分抗饱和限幅
+- 加速度输出限幅
+
+### 档位控制
+- 根据轨迹点速度方向自动切换 DRIVE/REVERSE 档
+- 到达终点后切换 PARK 档
+
+## 启动
+
+```bash
+# 单独启动
+ros2 launch reverse_parking_controller reverse_parking_controller.launch.py
+
+# 与规划器联合启动
+ros2 launch reverse_parking_planner reverse_parking_planner.launch.py &
+ros2 launch reverse_parking_controller reverse_parking_controller.launch.py
+```
+
+## 编译
+
+```bash
+colcon build --symlink-install --packages-select reverse_parking_controller
+```

@@ -601,7 +601,7 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
   data.ready = helper_->isReady(data.new_shift_line, path_shifter_.getLastShiftLength()) &&
                avoidance_ready.first;
   data.request_operator =
-    is_operator_approval_required(data.candidate_path, debug) || avoidance_ready.second;
+    is_operator_approval_required(data.candidate_path, debug) || avoidance_ready.second;// 强制改为 false
 }
 
 void StaticObstacleAvoidanceModule::fillEgoStatus(

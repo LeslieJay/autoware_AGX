@@ -37,15 +37,15 @@
       geometric_collision_check_distance_from_end: 0.0
       arc_path_interval: 1.0
       divide_pull_out_path: true
-      geometric_pull_out_velocity: 1.0
+      geometric_pull_out_velocity: 3.0
       lane_departure_margin: 0.2
       lane_departure_check_expansion_margin: 0.0
       backward_velocity: -1.0
       geometric_pull_out_max_steer_angle_margin_scale: 0.72
 
       # clothoid pull out
-      clothoid_initial_velocity: 1.0  # [m/s] initial velocity for clothoid path
-      clothoid_acceleration: 1.0      # [m/s^2] acceleration for clothoid path
+      clothoid_initial_velocity: 3.0  # [m/s] initial velocity for clothoid path
+      clothoid_acceleration: 3.0      # [m/s^2] acceleration for clothoid path
       clothoid_max_steer_angles_deg: [5.0, 10.0, 20.0]  # [deg] maximum steer angles to try
       clothoid_max_steer_angle_rate_deg_per_sec: 10.0   # [deg/s] maximum steer angle rate
       clothoid_collision_check_distance_from_end: 0.0  # [m] collision check distance from end for clothoid planner

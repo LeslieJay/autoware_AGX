@@ -47,8 +47,19 @@ AvoidanceByLaneChangeInterface::AvoidanceByLaneChangeInterface(
 
 bool AvoidanceByLaneChangeInterface::isExecutionRequested() const
 {
-  return module_type_->isLaneChangeRequired() && module_type_->specialRequiredCheck() &&
-         module_type_->isValidPath();
+  const bool lane_change_required = module_type_->isLaneChangeRequired();
+  const bool special_check = module_type_->specialRequiredCheck();
+  const bool valid_path = module_type_->isValidPath();
+  
+  const bool execution_requested = lane_change_required && special_check && valid_path;
+  
+  if (!execution_requested) {
+    RCLCPP_DEBUG_THROTTLE(getLogger(), *clock_, 3000,
+      "[AvoidByLC] Execution NOT requested: LC_required=%d, special_check=%d, valid_path=%d",
+      lane_change_required, special_check, valid_path);
+  }
+  
+  return execution_requested;
 }
 
 void AvoidanceByLaneChangeInterface::processOnEntry()

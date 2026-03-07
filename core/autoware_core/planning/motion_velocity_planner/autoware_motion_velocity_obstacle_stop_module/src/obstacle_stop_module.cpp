@@ -358,6 +358,11 @@ VelocityPlanningResult ObstacleStopModule::plan(
   trajectory_polygon_for_inside_map_.clear();
   decimated_traj_polys_ = std::nullopt;
 
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Planning cycle started. Trajectory points: %zu, Ego velocity: %.2f m/s",
+    raw_trajectory_points.size(), planner_data->current_odometry.twist.twist.linear.x);
+
   // 2. pre-process
   const auto decimated_traj_points = utils::decimate_trajectory_points_from_ego(
     raw_trajectory_points, planner_data->current_odometry.pose.pose,
@@ -366,23 +371,40 @@ VelocityPlanningResult ObstacleStopModule::plan(
     stop_planning_param_.stop_margin);
 
   // 3. filter obstacles of predicted objects
+  RCLCPP_DEBUG(
+    logger_, "[ObstacleStop] Filtering predicted objects. Total objects: %zu",
+    planner_data->objects.objects.size());
   auto stop_obstacles_for_predicted_object = filter_stop_obstacle_for_predicted_object(
     planner_data->current_odometry, planner_data->ego_nearest_dist_threshold,
     planner_data->ego_nearest_yaw_threshold,
     rclcpp::Time(planner_data->predicted_objects_header.stamp), raw_trajectory_points,
     decimated_traj_points, planner_data->objects, planner_data->vehicle_info_, x_offset_to_bumper,
     planner_data->trajectory_polygon_collision_check);
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Filtered stop obstacles from predicted objects: %zu",
+    stop_obstacles_for_predicted_object.size());
 
   // 4. filter obstacles of point cloud
+  RCLCPP_DEBUG(
+    logger_, "[ObstacleStop] Filtering point cloud obstacles. Total points: %zu",
+    planner_data->no_ground_pointcloud.pointcloud.size());
   auto stop_obstacles_for_point_cloud = filter_stop_obstacle_for_point_cloud(
     planner_data->current_odometry, raw_trajectory_points, decimated_traj_points,
     planner_data->no_ground_pointcloud, planner_data->vehicle_info_, x_offset_to_bumper,
     planner_data->trajectory_polygon_collision_check);
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Filtered stop obstacles from point cloud: %zu",
+    stop_obstacles_for_point_cloud.size());
 
   // 5. concat stop obstacles by predicted objects and point cloud
   const std::vector<StopObstacle> stop_obstacles =
     autoware::motion_velocity_planner::utils::concat_vectors(
       std::move(stop_obstacles_for_predicted_object), std::move(stop_obstacles_for_point_cloud));
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Total stop obstacles after concat: %zu", stop_obstacles.size());
 
   // 6. plan stop
   const auto stop_point =
@@ -395,6 +417,12 @@ VelocityPlanningResult ObstacleStopModule::plan(
   VelocityPlanningResult result;
   if (stop_point) {
     result.stop_points.push_back(*stop_point);
+    RCLCPP_INFO_THROTTLE(
+      logger_, *clock_, 1000,
+      "[ObstacleStop] Velocity planning result generated with stop point at (%.2f, %.2f, %.2f)",
+      stop_point->x, stop_point->y, stop_point->z);
+  } else {
+    RCLCPP_DEBUG(logger_, "[ObstacleStop] No stop point generated in velocity planning result");
   }
 
   return result;
@@ -441,11 +469,17 @@ std::optional<CollisionPointWithDist> ObstacleStopModule::get_nearest_collision_
   }
 
   if (point_cloud.pointcloud.empty()) {
+    RCLCPP_DEBUG(logger_, "[ObstacleStop] Point cloud is empty, no collision point");
     return std::nullopt;
   }
 
   const auto & clusters = point_cloud.get_cluster_indices();
   const auto & pointcloud_ptr = point_cloud.get_filtered_pointcloud_ptr();
+  
+  RCLCPP_DEBUG(
+    logger_,
+    "[ObstacleStop] Checking collision with point cloud - clusters: %zu, filtered points: %zu",
+    clusters.size(), pointcloud_ptr ? pointcloud_ptr->size() : 0);
 
   // height check will works even on the slope, but it is not accurate.
   const auto & height_margin = pointcloud_segmentation_param_.height_margin;
@@ -714,6 +748,13 @@ std::vector<StopObstacle> ObstacleStopModule::filter_stop_obstacle_for_point_clo
   const auto latest_point_cloud_time =
     rclcpp::Time(point_cloud.pointcloud.header.stamp * static_cast<uint32_t>(1e3), RCL_ROS_TIME);
   if (nearest_collision_point) {
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Found collision point in pointcloud - dist: %.2f m, point: (%.2f, %.2f, %.2f)",
+      nearest_collision_point->dist_to_collide,
+      nearest_collision_point->collision_point.x,
+      nearest_collision_point->collision_point.y,
+      nearest_collision_point->collision_point.z);
     upsert_pointcloud_stop_candidates(
       nearest_collision_point.value(), traj_points, latest_point_cloud_time);
   }
@@ -837,13 +878,14 @@ std::optional<StopObstacle> ObstacleStopModule::pick_stop_obstacle_from_predicte
     decimated_traj_points, vehicle_info, odometry.pose.pose, polygon_param,
     p.enable_to_consider_current_pose, p.time_to_convergence, p.decimate_trajectory_step_length);
 
-  // 4.2. inside obstacle check
+  // 4.2. inside obstacle check  // 检查处于当前轨迹内的障碍物是否与检测区域 detection_polygon 相交
   auto collision_point = polygon_utils::get_collision_point(
     detection_polygon_with_lat_margin.traj_points, detection_polygon_with_lat_margin.polygons,
     obj_pose.position, clock_->now(),
     autoware_utils_geometry::to_polygon2d(obj_pose, predicted_object.shape), x_offset_to_bumper);
 
   // 4.3. outside obstacle check. Scope of this check is cut-in obstacles.
+  // 检查处于当前轨迹外侧的障碍物是否会切入检测区域 detection_polygon
   if (!collision_point && filtering_params.check_outside) {
     collision_point = check_outside_cut_in_obstacle(
       object, traj_points, detection_polygon_with_lat_margin.traj_points,
@@ -923,6 +965,7 @@ bool ObstacleStopModule::is_obstacle_velocity_requiring_fixed_stop(
   const bool is_prev_object_requires_fixed_stop =
     stop_obstacle_opt.has_value() && !stop_obstacle_opt->braking_dist.has_value();
 
+  //！ obstacle_velocity_threshold_exit_fixed_stop >= obstacle_velocity_threshold_enter_fixed_stop
   if (is_prev_object_requires_fixed_stop) {
     if (
       stop_planning_param_.obstacle_velocity_threshold_exit_fixed_stop <
@@ -931,6 +974,7 @@ bool ObstacleStopModule::is_obstacle_velocity_requiring_fixed_stop(
     }
     return true;
   }
+  //！ 检查障碍物的相对轨迹的纵向速度是否低于进入固定停止的阈值
   if (
     object->get_lon_vel_relative_to_traj(traj_points) <
     stop_planning_param_.obstacle_velocity_threshold_enter_fixed_stop) {
@@ -1046,8 +1090,14 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
 {
   autoware_utils_debug::ScopedTimeTrack st(__func__, *time_keeper_);
 
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] plan_stop called with %zu stop obstacles, x_offset_to_bumper: %.2f",
+    stop_obstacles.size(), x_offset_to_bumper);
+
   // 如果没有停止障碍物，删除虚拟墙标记并返回空
   if (stop_obstacles.empty()) {
+    RCLCPP_DEBUG(logger_, "[ObstacleStop] No stop obstacles detected, clearing stop point");
     const auto markers =
       autoware::motion_utils::createDeletedStopVirtualWallMarker(clock_->now(), 0);
     autoware_utils_visualization::append_marker_array(markers, &debug_data_ptr_->stop_wall_marker);
@@ -1063,7 +1113,17 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
 
   // 获取最近的停止障碍物
   const auto closest_stop_obstacles = get_closest_stop_obstacles(stop_obstacles);
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Processing %zu closest stop obstacles", closest_stop_obstacles.size());
+  
   for (const auto & stop_obstacle : closest_stop_obstacles) {
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Processing obstacle - Type: %s, Dist to collide: %.2f m, Has braking dist: %s",
+      stop_obstacle.classification.to_string().c_str(),
+      stop_obstacle.dist_to_collide_on_decimated_traj,
+      stop_obstacle.braking_dist.has_value() ? "yes" : "no");
     // 找到自车在轨迹中的段索引
     const auto ego_segment_idx =
       planner_data->find_segment_index(traj_points, planner_data->current_odometry.pose.pose);
@@ -1072,6 +1132,14 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
     const double dist_to_collide_on_ref_traj =
       autoware::motion_utils::calcSignedArcLength(traj_points, 0, ego_segment_idx) +
       stop_obstacle.dist_to_collide_on_decimated_traj + stop_obstacle.braking_dist.value_or(0.0);
+    
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Calculated collision distance: %.2f m (ego_seg_arc: %.2f + decimated_dist: %.2f + braking: %.2f)",
+      dist_to_collide_on_ref_traj,
+      autoware::motion_utils::calcSignedArcLength(traj_points, 0, ego_segment_idx),
+      stop_obstacle.dist_to_collide_on_decimated_traj,
+      stop_obstacle.braking_dist.value_or(0.0));
 
     // 计算期望停止边距
     const double desired_stop_margin = calc_desired_stop_margin(
@@ -1082,8 +1150,17 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
     const auto candidate_zero_vel_dist = calc_candidate_zero_vel_dist(
       planner_data, traj_points, stop_obstacle, dist_to_collide_on_ref_traj, desired_stop_margin);
     if (!candidate_zero_vel_dist) {
+      RCLCPP_DEBUG(
+        logger_,
+        "[ObstacleStop] Failed to calculate candidate zero vel dist for obstacle at %.2f m, skipping",
+        dist_to_collide_on_ref_traj);
       continue;  // 如果计算失败，跳过
     }
+    
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Candidate zero vel dist: %.2f m, desired stop margin: %.2f m",
+      *candidate_zero_vel_dist, desired_stop_margin);
 
     // 如果已有确定的停止障碍物，比较并决定是否替换
     if (determined_stop_obstacle) {
@@ -1110,10 +1187,18 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
     determined_zero_vel_dist = *candidate_zero_vel_dist;
     determined_stop_obstacle = stop_obstacle;
     determined_desired_stop_margin = desired_stop_margin;
+    
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Updated determined obstacle - Type: %s, Zero vel dist: %.2f m",
+      stop_obstacle.classification.to_string().c_str(), *candidate_zero_vel_dist);
   }
 
   // 如果没有确定的停止障碍物、距离或边距，删除标记并返回空
   if (!(determined_zero_vel_dist && determined_stop_obstacle && determined_desired_stop_margin)) {
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] No valid determined stop obstacle found after processing all candidates");
     // delete marker
     const auto markers =
       autoware::motion_utils::createDeletedStopVirtualWallMarker(clock_->now(), 0);
@@ -1136,6 +1221,16 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
   const auto stop_point = calc_stop_point(
     planner_data, traj_points, x_offset_to_bumper, determined_stop_obstacle,
     determined_zero_vel_dist);
+  
+  RCLCPP_INFO_THROTTLE(
+    logger_, *clock_, 1000,
+    "[ObstacleStop] Final stop point calculated - Type: %s, Zero vel dist: %.2f m, Stop margin: %.2f m, Stop point: (%.2f, %.2f, %.2f)",
+    determined_stop_obstacle->classification.to_string().c_str(),
+    *determined_zero_vel_dist,
+    *determined_desired_stop_margin,
+    stop_point ? stop_point->x : 0.0,
+    stop_point ? stop_point->y : 0.0,
+    stop_point ? stop_point->z : 0.0);
 
   // 如果障碍物速度大于最大负速度阈值，直接返回停止点
   if (determined_stop_obstacle->velocity >= stop_planning_param_.max_negative_velocity) {
@@ -1155,6 +1250,13 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
   // 获取缓冲区中最接近的活动停止点
   const auto buffered_stop = path_length_buffer_.get_nearest_active_item();
   if (buffered_stop) {
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Using buffered stop point - Type: %s, Point: (%.2f, %.2f, %.2f)",
+      buffered_stop->determined_stop_obstacle.classification.to_string().c_str(),
+      buffered_stop->stop_point.x,
+      buffered_stop->stop_point.y,
+      buffered_stop->stop_point.z);
     // 如果有缓冲停止点，使用它并设置调试信息
     set_stop_planning_debug_info(
       buffered_stop->determined_stop_obstacle, buffered_stop->determined_desired_stop_margin);
@@ -1163,6 +1265,7 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::plan_stop(
   }
 
   // 否则返回空
+  RCLCPP_DEBUG(logger_, "[ObstacleStop] No buffered stop point available, returning nullopt");
   return std::nullopt;
 }
 
@@ -1234,6 +1337,11 @@ double ObstacleStopModule::calc_desired_stop_margin(
   // calculate stop margin on curve
   const double stop_margin_on_curve = calc_margin_from_obstacle_on_curve(
     planner_data, traj_points, stop_obstacle, x_offset_to_bumper, default_stop_margin);
+  
+  RCLCPP_DEBUG(
+    logger_,
+    "[ObstacleStop] Stop margin calculated - default: %.2f m, on curve: %.2f m",
+    default_stop_margin, stop_margin_on_curve);
 
   // calculate stop margin considering behavior's stop point
   // NOTE: If behavior stop point is ahead of the closest_obstacle_stop point within a certain
@@ -1294,8 +1402,18 @@ std::optional<double> ObstacleStopModule::calc_candidate_zero_vel_dist(
   const std::vector<TrajectoryPoint> & traj_points, const StopObstacle & stop_obstacle,
   const double dist_to_collide_on_ref_traj, const double desired_stop_margin)
 {
+  RCLCPP_DEBUG(
+    logger_,
+    "[ObstacleStop] Calculating zero vel dist - collision dist: %.2f m, stop margin: %.2f m",
+    dist_to_collide_on_ref_traj, desired_stop_margin);
+  
   double candidate_zero_vel_dist = std::max(0.0, dist_to_collide_on_ref_traj - desired_stop_margin);
   if (suppress_sudden_stop_) {
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Checking sudden stop suppression for %s obstacle",
+      stop_obstacle.classification.to_string().c_str());
+    
     const auto acceptable_stop_acc = [&]() -> std::optional<double> {
       if (stop_planning_param_.get_param_type(stop_obstacle.classification) == "default") {
         return common_param_.limit_min_accel;// 使用默认的最小加速度限制
@@ -1311,6 +1429,11 @@ std::optional<double> ObstacleStopModule::calc_candidate_zero_vel_dist(
         return common_param_.limit_min_accel;
       }
       if (stop_planning_param_.get_param(stop_obstacle.classification).abandon_to_stop) {
+        RCLCPP_WARN_THROTTLE(
+          logger_, *clock_, 1000,
+          "[ObstacleStop] Abandoning stop for %s object - distance: %.2f m, sudden threshold: %.2f m",
+          stop_obstacle.classification.to_string().c_str(),
+          candidate_zero_vel_dist, distance_to_judge_suddenness);
         RCLCPP_WARN(
           rclcpp::get_logger("ObstacleCruisePlanner::StopPlanner"),
           "[Cruise] abandon to stop against %s object",
@@ -1321,6 +1444,9 @@ std::optional<double> ObstacleStopModule::calc_candidate_zero_vel_dist(
       }
     }();
     if (!acceptable_stop_acc) {
+      RCLCPP_INFO_THROTTLE(
+        logger_, *clock_, 1000,
+        "[ObstacleStop] No acceptable stop acceleration found, abandoning stop");
       return std::nullopt;
     }
     // 存在可接受的停止加速度，根据加速度计算可接受的停止位置
@@ -1330,6 +1456,11 @@ std::optional<double> ObstacleStopModule::calc_candidate_zero_vel_dist(
       calc_minimum_distance_to_stop(
         planner_data->current_odometry.twist.twist.linear.x, common_param_.limit_max_accel,
         acceptable_stop_acc.value());
+    
+    RCLCPP_DEBUG(
+      logger_,
+      "[ObstacleStop] Acceptable stop pos: %.2f m, candidate: %.2f m, acc: %.2f m/s^2",
+      acceptable_stop_pos, candidate_zero_vel_dist, acceptable_stop_acc.value());
     if (acceptable_stop_pos > candidate_zero_vel_dist) {
       candidate_zero_vel_dist = acceptable_stop_pos;
     }
@@ -1388,6 +1519,8 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::calc_stop_point(
   auto output_traj_points = traj_points;
 
   // insert stop point
+  // 计算停止点插入位置的索引。如果确定的零速度距离小于等于0，则在索引0处（立即）停止。
+  // insertStopPoint函数会修改output_traj_points，在指定距离插入一个停止点（速度设为0），并返回该点的索引。
   const auto zero_vel_idx = [&]() -> std::optional<size_t> {
     if (determined_zero_vel_dist <= 0.0) {
       return 0;
@@ -1400,6 +1533,7 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::calc_stop_point(
   }
 
   // virtual wall marker for stop obstacle. This marker is not visualized in the default setting.
+  // 创建虚拟墙标记用于调试可视化（默认设置下不显示）。显示为何停止。
   const auto markers = autoware::motion_utils::createStopVirtualWallMarker(
     output_traj_points.at(*zero_vel_idx).pose, "obstacle stop", clock_->now(), 0,
     std::abs(x_offset_to_bumper), "", planner_data->is_driving_forward);
@@ -1407,6 +1541,8 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::calc_stop_point(
   debug_data_ptr_->obstacles_to_stop.push_back(*determined_stop_obstacle);
 
   // update planning factor
+  // 更新规划因子（Planning Factor），用于向外部报告停车原因（安全因子）。
+  // 根据障碍物类型（点云或识别对象）设置SafetyFactor类型。
   autoware_internal_planning_msgs::msg::SafetyFactor safety_factor;
   safety_factor.type =
     (determined_stop_obstacle->classification.label == StopObstacleClassification::Type::POINTCLOUD)
@@ -1421,10 +1557,12 @@ std::optional<geometry_msgs::msg::Point> ObstacleStopModule::calc_stop_point(
   safety_factor_array.is_safe = false;
 
   const auto stop_pose = output_traj_points.at(*zero_vel_idx).pose;
+  // 添加规划因子接口，包含轨迹、当前位置、停止位置、停止原因（PlanningFactor::STOP）和安全因子。
   planning_factor_interface_->add(
     output_traj_points, planner_data->current_odometry.pose.pose, stop_pose, PlanningFactor::STOP,
     safety_factor_array);
 
+  // 记录当前的停止信息（轨迹和停止距离），用于下一帧的“保持停止”（hold stop）逻辑判断。
   prev_stop_distance_info_ = std::make_pair(output_traj_points, determined_zero_vel_dist.value());
 
   return stop_pose.position;

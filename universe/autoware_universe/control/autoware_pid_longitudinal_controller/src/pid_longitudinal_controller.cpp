@@ -444,24 +444,60 @@ trajectory_follower::LongitudinalOutput PidLongitudinalController::run(
   return output;
 }
 
+/**
+ * @brief 获取PID纵向控制器的控制数据
+ * @details 该函数检索并处理纵向控制器所需的所有控制数据，包括车辆运动状态、轨迹插值、
+ *          延迟补偿和坡度角度计算。
+ * 
+ * 该函数执行以下操作：
+ * 1. 计算控制周期时间间隔 (dt)
+ * 2. 获取当前运动状态（速度和加速度）
+ * 3. 在轨迹中插值当前位姿位置
+ * 4. 应用延迟补偿以预测控制延迟后的车辆状态
+ * 5. 基于预测运动计算目标轨迹点
+ * 6. 处理轨迹重叠点移除和索引重新计算
+ * 7. 确定车辆档位状态（前进/倒车/空档）
+ * 8. 计算到停止线的距离
+ * 9. 从各种源计算坡度角（原始俯仰角、轨迹或自适应模式）
+ * 10. 对坡度角应用滤波和加加速度限制
+ * 
+ * @param [in] current_pose 自车当前位姿 (geometry_msgs::msg::Pose)
+ * 
+ * @return ControlData 包含以下内容的结构体：
+ *         - dt: 控制周期时间间隔
+ *         - current_motion: 当前速度和加速度
+ *         - interpolated_traj: 包含插值点的轨迹
+ *         - nearest_idx: 最近轨迹点的索引
+ *         - target_idx: 目标轨迹点的索引
+ *         - state_after_delay: 控制延迟后的预测车辆状态
+ *         - shift: 当前车辆档位状态
+ *         - stop_dist: 到停止线的距离
+ *         - slope_angle: 计算得到的道路坡度角（俯仰角）
+ * 
+ * @note 该函数在移除重叠点后搜索轨迹索引时使用软约束条件（距离和偏航角阈值），
+ *       以确保鲁棒性。
+ * 
+ * @note 坡度角源由m_slope_source配置参数决定，可能使用原始俯仰角传感器数据、
+ *       基于轨迹的俯仰角或两者的自适应组合，具体取决于车速和与轨迹终点的接近程度。
+ */
 PidLongitudinalController::ControlData PidLongitudinalController::getControlData(
   const geometry_msgs::msg::Pose & current_pose)
 {
   ControlData control_data{};
 
-  // dt
+  // 获取当前控制周期的时间间隔
   control_data.dt = getDt();
 
-  // current velocity and acceleration
+  // 获取当前运动状态：速度和加速度
   control_data.current_motion.vel = m_current_kinematic_state.twist.twist.linear.x;
   control_data.current_motion.acc = m_current_accel.accel.accel.linear.x;
   control_data.interpolated_traj = m_trajectory;
 
-  // calculate the interpolated point and segment
+  // 计算当前位置在轨迹中对应的插值点和轨迹段索引
   const auto current_interpolated_pose =
     calcInterpolatedTrajPointAndSegment(control_data.interpolated_traj, current_pose);
 
-  // Insert the interpolated point
+  // 将当前位置的插值点插入轨迹点列表中
   control_data.interpolated_traj.points.insert(
     control_data.interpolated_traj.points.begin() + current_interpolated_pose.second + 1,
     current_interpolated_pose.first);
@@ -470,22 +506,26 @@ PidLongitudinalController::ControlData PidLongitudinalController::getControlData
   const auto nearest_point = current_interpolated_pose.first;
   auto target_point = current_interpolated_pose.first;
 
-  // Delay compensation - Calculate the distance we got, predicted velocity and predicted
-  // acceleration after delay
+  // 延迟补偿 - 计算延迟时间内车辆行驶的距离、预测速度和预测加速度
   control_data.state_after_delay =
     predictedStateAfterDelay(control_data.current_motion, m_delay_compensation_time);
 
-  // calculate the target motion for delay compensation
+  // 计算延迟补偿后的目标轨迹点
+  // 如果预测行驶距离足够大，则沿轨迹向前寻找目标点
   constexpr double min_running_dist = 0.01;
   if (control_data.state_after_delay.running_distance > min_running_dist) {
+    // 移除轨迹中的重叠点，确保轨迹点的唯一性
     control_data.interpolated_traj.points =
       autoware::motion_utils::removeOverlapPoints(control_data.interpolated_traj.points);
+    // 按预测行驶距离在轨迹中查找目标位置
     const auto target_pose = longitudinal_utils::findTrajectoryPoseAfterDistance(
       control_data.nearest_idx, control_data.state_after_delay.running_distance,
       control_data.interpolated_traj);
+    // 计算目标位置的插值点
     const auto target_interpolated_point =
       calcInterpolatedTrajPointAndSegment(control_data.interpolated_traj, target_pose);
     control_data.target_idx = target_interpolated_point.second + 1;
+    // 将目标插值点插入轨迹点列表
     control_data.interpolated_traj.points.insert(
       control_data.interpolated_traj.points.begin() + control_data.target_idx,
       target_interpolated_point.first);
@@ -493,70 +533,88 @@ PidLongitudinalController::ControlData PidLongitudinalController::getControlData
   }
 
   // ==========================================================================================
-  // NOTE: due to removeOverlapPoints(), the obtained control_data.target_idx and
-  // control_data.nearest_idx may become invalid if the number of points decreased.
-  // current API does not provide the way to check duplication beforehand and this function
-  // does not tell how many/which index points were removed, so there is no way
-  // to tell if our `control_data.target_idx` point still exists or removed.
+  // 注意：由于 removeOverlapPoints() 可能会删除重叠点，导致轨迹点数量减少，
+  // 之前计算的 control_data.target_idx 和 control_data.nearest_idx 可能失效。
+  // 当前API没有提供事先检查重复点的方法，也不会告诉我们删除了哪些点，
+  // 因此无法确定我们的目标索引点是否仍然存在或已被删除。
   // ==========================================================================================
-  // Remove overlapped points after inserting the interpolated points
+  
+  // 再次移除插入插值点后产生的重叠点
   control_data.interpolated_traj.points =
     autoware::motion_utils::removeOverlapPoints(control_data.interpolated_traj.points);
+  
+  // 在清理后的轨迹中重新查找最近点的索引
+  // 使用软约束条件（距离和偏航角阈值）来确保找到的点是合理的
   control_data.nearest_idx = autoware::motion_utils::findFirstNearestIndexWithSoftConstraints(
     control_data.interpolated_traj.points, nearest_point.pose, m_ego_nearest_dist_threshold,
     m_ego_nearest_yaw_threshold);
+  
+  // 在清理后的轨迹中重新查找目标点的索引
   control_data.target_idx = autoware::motion_utils::findFirstNearestIndexWithSoftConstraints(
     control_data.interpolated_traj.points, target_point.pose, m_ego_nearest_dist_threshold,
     m_ego_nearest_yaw_threshold);
 
-  // send debug values
+  // 保存调试信息：预测速度和目标速度
   m_debug_values.setValues(DebugValues::TYPE::PREDICTED_VEL, control_data.state_after_delay.vel);
   m_debug_values.setValues(
     DebugValues::TYPE::TARGET_VEL,
     control_data.interpolated_traj.points.at(control_data.target_idx).longitudinal_velocity_mps);
 
-  // shift
+  // 确定当前车辆档位（前进/倒车/空档）
   control_data.shift = getCurrentShift(control_data);
+  // 如果档位发生变化，重置PID控制器以避免积分项的突变
   if (control_data.shift != m_prev_shift) {
     m_pid_vel.reset();
   }
   m_prev_shift = control_data.shift;
 
-  // distance to stopline
+  // 计算当前位置到停止线的距离
   control_data.stop_dist = longitudinal_utils::calcStopDistance(
     current_pose, control_data.interpolated_traj, m_ego_nearest_dist_threshold,
     m_ego_nearest_yaw_threshold);
 
-  // pitch
-  // NOTE: getPitchByTraj() calculates the pitch angle as defined in
-  // ../media/slope_definition.drawio.svg while getPitchByPose() is not, so `raw_pitch` is reversed
+  // 计算路面坡度（俯仰角）
+  // 注意：getPitchByTraj() 计算的俯仰角定义与 getPitchByPose() 不同，
+  // 所以从位姿获取的原始俯仰角需要取反
   const double raw_pitch = (-1.0) * longitudinal_utils::getPitchByPose(current_pose.orientation);
+  // 对原始俯仰角应用低通滤波器以平滑噪声
   m_lpf_pitch->filter(raw_pitch);
+  // 通过轨迹计算目标点处的俯仰角
   const double traj_pitch = longitudinal_utils::getPitchByTraj(
     control_data.interpolated_traj, control_data.target_idx, m_wheel_base);
 
+  // 根据配置的坡度源类型选择使用不同的俯仰角
   if (m_slope_source == SlopeSource::RAW_PITCH) {
+    // 使用传感器测量的俯仰角（经过低通滤波）
     control_data.slope_angle = m_lpf_pitch->getValue();
   } else if (m_slope_source == SlopeSource::TRAJECTORY_PITCH) {
+    // 使用轨迹中计算得到的俯仰角
     control_data.slope_angle = traj_pitch;
   } else if (
     m_slope_source == SlopeSource::TRAJECTORY_ADAPTIVE ||
     m_slope_source == SlopeSource::TRAJECTORY_GOAL_ADAPTIVE) {
-    // if velocity is high, use target idx for slope, otherwise, use raw_pitch
+    // 自适应坡度源：根据车速和距离目标的远近自动切换
+    
+    // 低速时使用传感器测量的俯仰角（TRAJECTORY_ADAPTIVE模式）
     const bool is_vel_slow = control_data.current_motion.vel < m_adaptive_trajectory_velocity_th &&
                              m_slope_source == SlopeSource::TRAJECTORY_ADAPTIVE;
 
+    // 计算当前位置到轨迹终点的有向弧长距离
     const double goal_dist = autoware::motion_utils::calcSignedArcLength(
       control_data.interpolated_traj.points, current_pose.position,
       control_data.interpolated_traj.points.size() - 1);
+    // 接近轨迹终点时使用传感器测量的俯仰角（TRAJECTORY_GOAL_ADAPTIVE模式）
     const bool is_close_to_trajectory_end =
       goal_dist < m_wheel_base && m_slope_source == SlopeSource::TRAJECTORY_GOAL_ADAPTIVE;
 
+    // 根据条件选择使用哪种俯仰角
     control_data.slope_angle =
       (is_close_to_trajectory_end || is_vel_slow) ? m_lpf_pitch->getValue() : traj_pitch;
 
+    // 对俯仰角应用加速度限制，避免俯仰角变化过快
     if (m_previous_slope_angle.has_value()) {
-      constexpr double gravity_const = 9.8;
+      constexpr double gravity_const = 9.8;  // 重力加速度常数
+      // 限制俯仰角的变化速率不超过配置的最大/最小加加速度
       control_data.slope_angle = std::clamp(
         control_data.slope_angle,
         m_previous_slope_angle.value() + m_min_jerk * control_data.dt / gravity_const,
@@ -564,11 +622,13 @@ PidLongitudinalController::ControlData PidLongitudinalController::getControlData
     }
     m_previous_slope_angle = control_data.slope_angle;
   } else {
+    // 配置错误时，默认使用传感器测量的俯仰角
     RCLCPP_ERROR_THROTTLE(
       logger_, *clock_, 3000, "Slope source is not valid. Using raw_pitch option as default");
     control_data.slope_angle = m_lpf_pitch->getValue();
   }
 
+  // 更新俯仰角相关的调试数据
   updatePitchDebugValues(control_data.slope_angle, traj_pitch, raw_pitch, m_lpf_pitch->getValue());
 
   return control_data;
@@ -799,6 +859,39 @@ void PidLongitudinalController::updateControlState(const ControlData & control_d
   return;
 }
 
+/**
+ * @brief 计算纵向控制命令
+ * 
+ * 根据控制数据计算纵向加速度和速度命令。该函数处理四种控制状态：停止、紧急制动、
+ * 正常驾驶和平滑停止。对加速度命令应用反馈控制、坡度补偿和速率限制。
+ * 
+ * @param control_data 包含目标轨迹点、当前运动状态、时间步长等控制数据的结构体
+ * 
+ * @return Motion 结构体，包含最终的速度命令(mps)和加速度命令(mps²)
+ * 
+ * @details 处理流程：
+ *   1. 从目标轨迹点提取初始速度和加速度
+ *   2. 根据控制状态(STOPPED/EMERGENCY/DRIVE/STOPPING)计算原始控制命令
+ *   3. 对加速度命令应用限制和滤波：
+ *      - 加速度限制在[m_min_acc, m_max_acc]范围内
+ *      - 应用加加速度(jerk)限制滤波
+ *   4. 计算加速度反馈控制以消除加速度误差
+ *   5. 应用坡度补偿以适应不同的道路坡度
+ *   6. 应用最终的加速度命令差分限制
+ *   7. 更新调试信息
+ * 
+ * @note 
+ *   - 停止状态(STOPPED)：使用停止状态参数，不计算反馈控制
+ *   - 紧急状态(EMERGENCY)：使用紧急制动控制，不应用坡度补偿
+ *   - 正常驾驶(DRIVE)：应用速度反馈控制和停止前制动保持
+ *   - 平滑停止(STOPPING)：使用平滑停止计算器计算加速度
+ * 
+ * @see applyVelocityFeedback
+ * @see keepBrakeBeforeStop
+ * @see calcEmergencyCtrlCmd
+ * @see applySlopeCompensation
+ * @see longitudinal_utils::applyDiffLimitFilter
+ */
 PidLongitudinalController::Motion PidLongitudinalController::calcCtrlCmd(
   const ControlData & control_data)
 {
@@ -808,7 +901,8 @@ PidLongitudinalController::Motion PidLongitudinalController::calcCtrlCmd(
   Motion ctrl_cmd_as_pedal_pos{
     control_data.interpolated_traj.points.at(target_idx).longitudinal_velocity_mps,
     control_data.interpolated_traj.points.at(target_idx).acceleration_mps2};
-
+  // Print control state
+  RCLCPP_DEBUG(logger_, "[calcCtrlCmd] control_state: %s", toStr(m_control_state).c_str());
   if (m_control_state == ControlState::STOPPED) {
     const auto & p = m_stopped_state_params;
     ctrl_cmd_as_pedal_pos.vel = p.vel;
@@ -1122,49 +1216,109 @@ PidLongitudinalController::StateAfterDelay PidLongitudinalController::predictedS
   return StateAfterDelay{pred_vel, pred_acc, running_distance};
 }
 
+/**
+ * @brief 应用速度反馈控制计算加速度命令
+ * 
+ * @details 该函数实现PID反馈控制和前馈补偿相结合的速度控制算法。主要功能包括：
+ *   1. 计算速度误差（目标速度与当前速度的差值）
+ *   2. 根据车辆运动状态和控制权限决定是否启用PID积分环节
+ *   3. 应用低通滤波器平滑速度误差信号
+ *   4. 通过PID控制器计算反馈加速度
+ *   5. 应用前馈缩放因子进行坐标系转换补偿
+ *   6. 合并前馈和反馈加速度得到最终命令
+ * 
+ * @param control_data 包含目标轨迹、当前运动状态、档位等信息的控制数据结构体
+ * 
+ * @return double 计算得到的目标加速度命令 [m/s²]
+ * 
+ * @note 
+ *   - 加速度命令在车辆向前或向后运动时始终为正值（符号通过vel_sign处理）
+ *   - PID积分项仅在车辆运动或被卡住足够长时间时启用，防止低速积分饱和
+ *   - 前馈缩放因子补偿时间坐标系到弧长坐标系的转换，确保控制精度
+ * 
+ * @see Motion
+ * @see ControlData
+ */
 double PidLongitudinalController::applyVelocityFeedback(const ControlData & control_data)
 {
-  // NOTE: Acceleration command is always positive even if the ego drives backward.
+  // 根据车辆档位确定速度符号
+  // 前进档时为正，倒车档时为负，空档时为0
   const double vel_sign = (control_data.shift == Shift::Forward)
                             ? 1.0
                             : (control_data.shift == Shift::Reverse ? -1.0 : 0.0);
+  
+  // 获取当前车辆速度 [m/s]
   const double current_vel = control_data.current_motion.vel;
+  
+  // 从目标轨迹点提取目标速度和目标加速度
   const auto target_motion = Motion{
     control_data.interpolated_traj.points.at(control_data.target_idx).longitudinal_velocity_mps,
     control_data.interpolated_traj.points.at(control_data.target_idx).acceleration_mps2};
+  
+  // 计算速度误差：(目标速度 - 当前速度) * 符号因子
+  // 这里对速度误差进行符号处理，使其与车辆行驶方向一致
   const double diff_vel = (target_motion.vel - current_vel) * vel_sign;
+  
+  // 检查车辆是否处于自动驾驶控制下
   const bool is_under_control = m_current_operation_mode.is_autoware_control_enabled &&
                                 m_current_operation_mode.mode == OperationModeState::AUTONOMOUS;
 
+  // 判断车辆是否在运动：速度大于阈值，则认为车辆在运动
   const bool vehicle_is_moving = std::abs(current_vel) > m_current_vel_threshold_pid_integrate;
+  
+  // 计算车辆在自动驾驶控制下的持续时间 [秒]
   const double time_under_control = getTimeUnderControl();
+  
+  // 判断车辆是否被卡住：低速运动超过指定时间阈值
+  // 这用于在车辆被卡住时仍然允许PID积分，防止控制器失效
   const bool vehicle_is_stuck =
     !vehicle_is_moving && time_under_control > m_time_threshold_before_pid_integrate;
 
+  // 决定是否启用PID积分项
+  // 条件：车辆运动 OR (启用低速积分 AND 车辆被卡住) AND 处于自动驾驶控制下
   const bool enable_integration =
     (vehicle_is_moving || (m_enable_integration_at_low_speed && vehicle_is_stuck)) &&
     is_under_control;
 
+  // 对速度误差应用低通滤波器以平滑噪声信号
   const double error_vel_filtered = m_lpf_vel_error->filter(diff_vel);
 
+  // 用于存储PID三个分量(P、I、D)的贡献值
   std::vector<double> pid_contributions(3);
+  
+  // 通过PID控制器计算反馈加速度
+  // - error_vel_filtered: 滤波后的速度误差输入
+  // - control_data.dt: 控制周期时间步长
+  // - enable_integration: 是否启用积分项
+  // - pid_contributions: 输出参数，存储P/I/D各项的贡献
   const double pid_acc =
     m_pid_vel.calculate(error_vel_filtered, control_data.dt, enable_integration, pid_contributions);
 
-  // Feedforward scaling:
-  // This is for the coordinate conversion where feedforward is applied, from Time to Arclength.
-  // Details: For accurate control, the feedforward should be calculated in the arclength coordinate
-  // system, not in the time coordinate system. Otherwise, even if FF is applied, the vehicle speed
-  // deviation will be bigger.
-  constexpr double ff_scale_max = 2.0;  // for safety
-  constexpr double ff_scale_min = 0.5;  // for safety
+  // 前馈缩放因子计算
+  // 
+  // 原理说明：
+  // 控制指令原本在时间坐标系中计算（基于轨迹的时间参数化）
+  // 但车辆实际在弧长坐标系中运动（基于实际行驶距离）
+  // 这个缩放因子用于将前馈项从时间坐标系转换到弧长坐标系
+  // 公式：ff_scale = |当前速度| / max(|目标速度|, 0.1)
+  // 
+  // 缩放因子范围限制：[0.5, 2.0]
+  // - 下限0.5：防止前馈过度减小，造成响应不足
+  // - 上限2.0：防止前馈过度增大，造成超调
+  constexpr double ff_scale_max = 2.0;  // 安全上限
+  constexpr double ff_scale_min = 0.5;  // 安全下限
   const double ff_scale = std::clamp(
     std::abs(current_vel) / std::max(std::abs(target_motion.vel), 0.1), ff_scale_min, ff_scale_max);
+  
+  // 计算前馈加速度
+  // = 轨迹上的目标加速度 * 前馈缩放因子
   const double ff_acc =
     control_data.interpolated_traj.points.at(control_data.target_idx).acceleration_mps2 * ff_scale;
 
+  // 合并前馈和反馈加速度得到最终反馈控制加速度
   const double feedback_acc = ff_acc + pid_acc;
 
+  // 记录调试信息：各个控制环节的中间值，用于问题诊断和性能分析
   m_debug_values.setValues(DebugValues::TYPE::ACC_CMD_PID_APPLIED, feedback_acc);
   m_debug_values.setValues(DebugValues::TYPE::ERROR_VEL_FILTERED, error_vel_filtered);
   m_debug_values.setValues(DebugValues::TYPE::ACC_CMD_FB_P_CONTRIBUTION, pid_contributions.at(0));
@@ -1173,9 +1327,10 @@ double PidLongitudinalController::applyVelocityFeedback(const ControlData & cont
   m_debug_values.setValues(DebugValues::TYPE::FF_SCALE, ff_scale);
   m_debug_values.setValues(DebugValues::TYPE::ACC_CMD_FF, ff_acc);
 
+  // 返回最终的反馈控制加速度命令
   return feedback_acc;
 }
-
+void PidLongitudinalController::updateDebugVelAcc(const ControlData & control_data);
 void PidLongitudinalController::updatePitchDebugValues(
   const double pitch_using, const double traj_pitch, const double localization_pitch,
   const double localization_pitch_lpf)

@@ -1,0 +1,19 @@
+/**:
+  ros__parameters:
+    # 车辆参数
+    wheel_base: 1.0           # 轴距 [m]
+    min_turning_radius: 2.0   # 最小转弯半径 [m]
+    vehicle_length: 1.8       # 车长 [m]
+    vehicle_width: 1.2        # 车宽 [m]
+
+    # 路径参数
+    path_resolution: 0.1      # 路径采样分辨率 [m]
+    velocity_forward: 0.5     # 前进速度 [m/s]
+    velocity_reverse: -0.3    # 倒车速度 [m/s] (负值)
+    
+    # 规划参数
+    max_planning_time: 1.0    # 最大规划时间 [s]
+    enable_reverse_only: false # 是否仅使用倒车路径
+    
+    # 发布频率
+    publish_rate: 10.0        # Hz

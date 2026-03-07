@@ -20,10 +20,7 @@ The side shift has three distinct statuses. Note that during the SHIFTING status
 2. SHIFTING: Currently in the process of shifting.
 3. AFTER_SHIFT: Shift completed.
 
-<figure markdown>
-  ![case1](images/side_shift_status.drawio.svg){width=1000}
-  <figcaption>side shift status</figcaption>
-</figure>
+![side shift status](./images/side_shift_status.drawio.svg)
 
 ## Flowchart
 

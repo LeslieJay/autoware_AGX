@@ -82,3 +82,73 @@ wait_and_see:
 wait_and_see:
   target_behaviors: ["MERGING", "DEVIATING"]  # 要等待观察的行为类型
   th_closest_distance: 10.0                    # 最近距离阈值[m]
+
+
+### RTC(request to cooperate)
+
+**触发条件**
+
+data.request_operator == true
+
+**rtc_interface.hpp**
+
+1. RTC 接口使用的命名空间
+std::string cooperate_status_namespace_ = "/planning/cooperate_status";
+std::string cooperate_commands_namespace_ = "/planning/cooperate_commands";
+std::string enable_auto_mode_namespace_ = "/planning/enable_auto_mode";
+
+2. 状态发布: 
+/planning/cooperate_status/static_obstacle_avoidance_left 和 /planning/cooperate_status/
+static_obstacle_avoidance_right
+
+3. 命令服务: 
+/planning/cooperate_commands/static_obstacle_avoidance_left 和 /planning/cooperate_commands/static_obstacle_avoidance_right
+
+# 查看左侧绕避状态
+ros2 topic echo /planning/cooperate_status/static_obstacle_avoidance_left
+
+# 查看右侧绕避状态
+ros2 topic echo /planning/cooperate_status/static_obstacle_avoidance_right
+
+# 批准左侧绕避（ACTIVATE命令）
+ros2 service call /planning/cooperate_commands/static_obstacle_avoidance_left \
+  tier4_rtc_msgs/srv/CooperateCommands \
+  "{
+    stamp: {sec: 0, nanosec: 0},
+    commands: [
+      {
+        module: {type: 10},  // module: {type: 11} 批准右侧绕避
+        command: {type: 1},
+        uuid: {uuid: [你的UUID]}
+      }
+    ]
+  }"
+
+# 实时查看UUID
+ros2 topic echo /planning/cooperate_status/static_obstacle_avoidance_left
+
+# 输出示例：
+# statuses:
+# - uuid: {uuid: [12, 34, 56, 78, ...]}  # 这就是UUID
+#   requested: true
+#   safe: true
+#   ...
+
+
+### 查看有那些组件被激活
+ros2 topic echo /planning/.../behavior_path_planner/debug/module_status
+
+### 算法流程
+
+1. 更新数据 getPreviousModuleOutput().reference_path， PreviousSplineShiftPath， PreviousLinearShiftPath // updateData
+1.1 更新基础路径和目标障碍物 // fillFundamentalData
+1.1.1 获取自车参考位姿和车道信息
+1.1.2 根据是否存在红灯信号扩展可行驶车道
+1.1.3 计算可行驶区域的边界 （data.drivable_lanes_same_direction/data.drivable_lanes）
+1.1.4 重采样参考路径
+
+1.1.5 过滤最新检测到的障碍物  // fillAvoidanceTargetObjects
+1.1.5.1 基于障碍物位于车道线内/外，划分为线内/外障碍物
+1.1.5.2 从线内障碍物集合过滤得到目标障碍物  // filterTargetObjects
+
+1.1.6 补偿感知丢失的障碍物 // compensateLostTargetObjects

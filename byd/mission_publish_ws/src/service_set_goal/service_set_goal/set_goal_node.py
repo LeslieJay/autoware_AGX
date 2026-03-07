@@ -8,7 +8,7 @@ Supports multiple goals with sequential execution and arrival detection.
 
 import rclpy
 from rclpy.node import Node
-from autoware_adapi_v1_msgs.srv import SetRoutePoints
+from autoware_adapi_v1_msgs.srv import SetRoutePoints, ClearRoute
 from autoware_adapi_v1_msgs.msg import RouteState
 from geometry_msgs.msg import Pose
 from std_msgs.msg import Header
@@ -55,13 +55,18 @@ class SetGoalNode(Node):
         self.current_goal_index = 0
         self.is_waiting = False
         self.wait_timer = None
+        self.clear_wait_timer = None
         self.route_state = self.ROUTE_STATE_UNKNOWN
         self.goal_sent = False
 
-        # Create service client
+        # Create service clients
         self.client = self.create_client(
             SetRoutePoints,
             '/api/routing/set_route_points'
+        )
+        self.clear_route_client = self.create_client(
+            ClearRoute,
+            '/api/routing/clear_route'
         )
 
         # Subscribe to routing state
@@ -72,13 +77,15 @@ class SetGoalNode(Node):
             10
         )
 
-        self.get_logger().info('Waiting for /api/routing/set_route_points service...')
+        self.get_logger().info('Waiting for services...')
 
-        # Wait for service to be available
+        # Wait for services to be available
         while not self.client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Service not available, waiting...')
+            self.get_logger().info('set_route_points service not available, waiting...')
+        while not self.clear_route_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('clear_route service not available, waiting...')
 
-        self.get_logger().info('Service is available!')
+        self.get_logger().info('All services are available!')
         self.get_logger().info(f'Loaded {len(self.goals)} goals: {[g["name"] for g in self.goals]}')
 
         # Send first goal
@@ -165,11 +172,48 @@ class SetGoalNode(Node):
                 self.get_logger().info('All goals completed!')
                 return
 
-        # Send next goal
+        # Clear route before sending next goal
+        self.clear_route_and_send_next()
+
+    def clear_route_and_send_next(self):
+        """Move to next goal and send it (route clear is handled in send_current_goal)."""
+        self.get_logger().info('Moving to next goal...')
         self.send_current_goal()
 
     def send_current_goal(self):
         """Send the current goal in the sequence."""
+        if self.current_goal_index >= len(self.goals):
+            self.get_logger().info('No more goals to send.')
+            return
+
+        # Clear route before sending any goal
+        self.clear_route_before_send_current()
+
+    def clear_route_before_send_current(self):
+        """Clear route, then send current goal."""
+        self.get_logger().info('Clearing route before sending goal...')
+        request = ClearRoute.Request()
+        future = self.clear_route_client.call_async(request)
+        future.add_done_callback(self.clear_route_response_for_send_callback)
+
+    def clear_route_response_for_send_callback(self, future):
+        """Handle the clear_route service response before sending goal."""
+        try:
+            response = future.result()
+            if response.status.success:
+                self.get_logger().info('Route cleared successfully! Sending goal...')
+            else:
+                self.get_logger().warning(
+                    f'Failed to clear route: {response.status.message}, but proceeding anyway'
+                )
+            # Always send goal, even if clear failed
+            self._do_send_current_goal()
+        except Exception as e:
+            self.get_logger().error(f'Clear route service call failed: {str(e)}, but proceeding anyway')
+            self._do_send_current_goal()
+
+    def _do_send_current_goal(self):
+        """Actually send the current goal (after route has been cleared)."""
         if self.current_goal_index >= len(self.goals):
             self.get_logger().info('No more goals to send.')
             return
