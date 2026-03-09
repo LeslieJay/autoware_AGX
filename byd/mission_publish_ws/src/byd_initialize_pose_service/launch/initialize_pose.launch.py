@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch file for initialize_pose_node."""
+"""Launch file for initialize_pose_node (C++ version)."""
 
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -13,7 +13,7 @@ def generate_launch_description():
     """Generate launch description for initialize_pose_node."""
 
     # Get package share directory
-    pkg_share = get_package_share_directory('service_initialize_pose')
+    pkg_share = get_package_share_directory('byd_initialize_pose_service')
 
     # Default config file path
     default_config = os.path.join(pkg_share, 'config', 'initial_pose.yaml')
@@ -27,7 +27,7 @@ def generate_launch_description():
 
     # Create the node - parameters come from YAML file only
     initialize_pose_node = Node(
-        package='service_initialize_pose',
+        package='byd_initialize_pose_service',
         executable='initialize_pose_node',
         name='initialize_pose_node',
         output='screen',
@@ -38,4 +38,3 @@ def generate_launch_description():
         config_file_arg,
         initialize_pose_node,
     ])
-

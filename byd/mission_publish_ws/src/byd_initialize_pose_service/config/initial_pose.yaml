@@ -39,5 +39,3 @@ initialize_pose_node:
     # If true, use auto-initialization (GNSS-based, no pose needed)
     # If false, use the pose specified above
     auto_initialize: false
-
-
