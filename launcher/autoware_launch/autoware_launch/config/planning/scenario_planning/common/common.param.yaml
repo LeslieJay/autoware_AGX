@@ -1,13 +1,13 @@
 /**:
   ros__parameters:
-    max_vel: 8.33           # max velocity limit [m/s]
+    max_vel: 4.2           # max velocity limit [m/s] 全局速度限制，减小该值可以降低整体行驶速度，增加安全性，但过低可能导致行驶效率降低。一般来说，4-6 m/s 是常见的范围，具体数值需要根据车辆性能和测试结果进行调整。
 
     # constraints param for normal driving
     normal:
-      min_acc: -1.0         # min deceleration [m/ss]
-      max_acc: 1.0          # max acceleration [m/ss]
-      min_jerk: -1.0        # min jerk [m/sss]
-      max_jerk: 1.0         # max jerk [m/sss]
+      min_acc: -0.8         # min deceleration [m/ss]
+      max_acc: 0.8          # max acceleration [m/ss]
+      min_jerk: -0.8        # min jerk [m/sss]
+      max_jerk: 0.8         # max jerk [m/sss]
 
     # constraints to be observed
     limit:

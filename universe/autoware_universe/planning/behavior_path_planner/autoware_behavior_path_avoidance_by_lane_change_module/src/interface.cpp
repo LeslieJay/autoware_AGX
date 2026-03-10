@@ -54,7 +54,7 @@ bool AvoidanceByLaneChangeInterface::isExecutionRequested() const
   const bool execution_requested = lane_change_required && special_check && valid_path;
   
   if (!execution_requested) {
-    RCLCPP_DEBUG_THROTTLE(getLogger(), *clock_, 3000,
+    RCLCPP_INFO_THROTTLE(getLogger(), *clock_, 3000,
       "[AvoidByLC] Execution NOT requested: LC_required=%d, special_check=%d, valid_path=%d",
       lane_change_required, special_check, valid_path);
   }

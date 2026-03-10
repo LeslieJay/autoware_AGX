@@ -305,8 +305,31 @@ struct CommonData
 
   [[nodiscard]] bool is_lanes_available() const
   {
-    return lanes_ptr && !lanes_ptr->current.empty() && !lanes_ptr->target.empty() &&
-           !lanes_ptr->target_neighbor.empty();
+    auto logger = rclcpp::get_logger("lane_change");
+    
+    RCLCPP_INFO(logger, "=== Checking lanes availability ===");
+    RCLCPP_INFO(logger, "[Pointer Status] lanes_ptr: %s", 
+      lanes_ptr ? "VALID" : "NULL");
+    
+    if (!lanes_ptr) {
+      RCLCPP_WARN(logger, "lanes_ptr is NULL - returning false");
+      return false;
+    }
+    
+    RCLCPP_INFO(logger, "[Lanes Status]");
+    RCLCPP_INFO(logger, "  - current.empty(): %s (size=%zu)", 
+      lanes_ptr->current.empty() ? "YES" : "NO", lanes_ptr->current.size());
+    RCLCPP_INFO(logger, "  - target.empty(): %s (size=%zu)", 
+      lanes_ptr->target.empty() ? "YES" : "NO", lanes_ptr->target.size());
+    RCLCPP_INFO(logger, "  - target_neighbor.empty(): %s (size=%zu)", 
+      lanes_ptr->target_neighbor.empty() ? "YES" : "NO", lanes_ptr->target_neighbor.size());
+    
+    const bool result = !lanes_ptr->current.empty() && !lanes_ptr->target.empty() &&
+                       !lanes_ptr->target_neighbor.empty();
+    
+    RCLCPP_INFO(logger, "[Result] is_lanes_available: %s", result ? "TRUE" : "FALSE");
+    
+    return result;
   }
 };
 using CommonDataPtr = std::shared_ptr<CommonData>;

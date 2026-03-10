@@ -288,6 +288,11 @@ bool NormalLaneChange::isLaneChangeRequired()
   if (
     !common_data_ptr_ || !common_data_ptr_->is_data_available() ||
     !common_data_ptr_->is_lanes_available()) {
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 3000,
+      "Data not available - common_data_ptr_: %s, is_data_available: %s, is_lanes_available: %s",
+      (!common_data_ptr_ ? "null" : "valid"),
+      (common_data_ptr_ && !common_data_ptr_->is_data_available() ? "false" : "true"),
+      (common_data_ptr_ && !common_data_ptr_->is_lanes_available() ? "false" : "true"));
     return false;
   }
 
@@ -299,11 +304,15 @@ bool NormalLaneChange::isLaneChangeRequired()
   const auto max_prepare_length = calculation::calc_maximum_prepare_length(common_data_ptr_);
 
   if (ego_dist_to_target_start > max_prepare_length) {
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 3000,
+      "ego_dist_to_target_start: %.4f, max_prepare_length: %.4f",
+      ego_dist_to_target_start,
+      max_prepare_length);
     return false;
   }
 
   if (is_near_regulatory_element()) {
-    RCLCPP_DEBUG(logger_, "Ego is close to regulatory element, don't run LC module");
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 3000, "Ego is close to regulatory element, don't run LC module");
     return false;
   }
 

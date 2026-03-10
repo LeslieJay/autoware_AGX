@@ -4,7 +4,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -25,7 +25,7 @@ def generate_launch_description():
         description='Path to the goal points configuration file'
     )
 
-    # Create the node - parameters come from YAML file only
+    # Create the node with delayed startup (5 seconds) to ensure Autoware API services are ready
     set_goal_node = Node(
         package='byd_set_goal_service',
         executable='set_goal_node',
@@ -34,7 +34,10 @@ def generate_launch_description():
         parameters=[LaunchConfiguration('config_file')],
     )
 
+    # Delay node startup by 5 seconds to ensure Autoware services are initialized
+    delayed_set_goal_node = TimerAction(period=5.0, actions=[set_goal_node])
+
     return LaunchDescription([
         config_file_arg,
-        set_goal_node,
+        delayed_set_goal_node,
     ])

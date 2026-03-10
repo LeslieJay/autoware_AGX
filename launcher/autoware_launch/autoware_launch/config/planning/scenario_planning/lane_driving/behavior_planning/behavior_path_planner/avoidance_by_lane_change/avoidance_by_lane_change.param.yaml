@@ -1,43 +1,43 @@
 /**:
   ros__parameters:
     avoidance_by_lane_change:
-      execute_object_longitudinal_margin: 80.0
-      execute_only_when_lane_change_finish_before_object: false
+      execute_object_longitudinal_margin: 20.0     # Reduced for low-speed AGV in closed park
+      execute_only_when_lane_change_finish_before_object: false  # Stricter safety for AGV
 
       # avoidance is performed for the object type with true
       target_object:
         car:
-          th_moving_speed: 1.0                         # [m/s]
-          th_moving_time: 1.0                          # [s]
+          th_moving_speed: 0.5                         # [m/s] Disabled for closed park
+          th_moving_time: 10.0                         # [s] High threshold to disable
           max_expand_ratio: 0.0                        # [-]
-          envelope_buffer_margin: 0.3                  # [m]
+          envelope_buffer_margin: 0.0                  # [m] Disabled
           lateral_margin:
             soft_margin: 0.0                           # [m]
             hard_margin: 0.0                           # [m]
             hard_margin_for_parked_vehicle: 0.0        # [m]
         truck:
-          th_moving_speed: 1.0                         # 3.6km/h
-          th_moving_time: 1.0
+          th_moving_speed: 0.5                         # Disabled for closed park
+          th_moving_time: 10.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.3
+          envelope_buffer_margin: 0.0
           lateral_margin:
             soft_margin: 0.0                           # [m]
             hard_margin: 0.0                           # [m]
             hard_margin_for_parked_vehicle: 0.0        # [m]
         bus:
-          th_moving_speed: 1.0                         # 3.6km/h
-          th_moving_time: 1.0
+          th_moving_speed: 0.5                         # Disabled for closed park
+          th_moving_time: 10.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.3
+          envelope_buffer_margin: 0.0
           lateral_margin:
             soft_margin: 0.0                           # [m]
             hard_margin: 0.0                           # [m]
             hard_margin_for_parked_vehicle: 0.0        # [m]
         trailer:
-          th_moving_speed: 1.0                         # 3.6km/h
-          th_moving_time: 1.0
+          th_moving_speed: 0.5                         # Disabled for closed park
+          th_moving_time: 10.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.3
+          envelope_buffer_margin: 0.0
           lateral_margin:
             soft_margin: 0.0                           # [m]
             hard_margin: 0.0                           # [m]
@@ -46,37 +46,37 @@
           th_moving_speed: 0.28                        # 1.0km/h
           th_moving_time: 1.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.3
+          envelope_buffer_margin: 0.5                  # Increased for safety
           lateral_margin:
-            soft_margin: 0.0                           # [m]
-            hard_margin: 0.0                           # [m]
-            hard_margin_for_parked_vehicle: 0.0        # [m]
+            soft_margin: 0.2                           # [m] Increased safety
+            hard_margin: 0.5                           # [m] Increased safety
+            hard_margin_for_parked_vehicle: 0.3        # [m] Increased safety
         bicycle:
           th_moving_speed: 0.28                        # 1.0km/h
           th_moving_time: 1.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.8
+          envelope_buffer_margin: 1.0                  # Increased for safety
           lateral_margin:
-            soft_margin: 0.0                           # [m]
-            hard_margin: 1.0                           # [m]
+            soft_margin: 0.3                           # [m] Increased safety
+            hard_margin: 1.2                           # [m] Increased safety
             hard_margin_for_parked_vehicle: 1.0        # [m]
         motorcycle:
-          th_moving_speed: 1.0                         # 3.6km/h
-          th_moving_time: 1.0
+          th_moving_speed: 0.5                         # Disabled for closed park
+          th_moving_time: 10.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.8
+          envelope_buffer_margin: 0.0
           lateral_margin:
             soft_margin: 0.0                           # [m]
-            hard_margin: 1.0                           # [m]
-            hard_margin_for_parked_vehicle: 1.0        # [m]
+            hard_margin: 0.0                           # [m]
+            hard_margin_for_parked_vehicle: 0.0        # [m]
         pedestrian:
           th_moving_speed: 0.28                        # 1.0km/h
           th_moving_time: 1.0
           max_expand_ratio: 0.0
-          envelope_buffer_margin: 0.8
+          envelope_buffer_margin: 1.0                  # Increased for pedestrian safety
           lateral_margin:
-            soft_margin: 0.0                           # [m]
-            hard_margin: 1.0                           # [m]
+            soft_margin: 0.3                           # [m] Increased safety
+            hard_margin: 1.2                           # [m] Increased safety
             hard_margin_for_parked_vehicle: 1.0        # [m]
         lower_distance_for_polygon_expansion: 0.0      # [m]
         upper_distance_for_polygon_expansion: 1.0      # [m]
@@ -85,11 +85,11 @@
       target_filtering:
         # avoidance target type
         target_type:
-          car: true                                    # [-]
-          truck: true                                  # [-]
-          bus: true                                    # [-]
-          trailer: true                                # [-]
-          unknown: true                                # [-]
-          bicycle: false                               # [-]
-          motorcycle: false                            # [-]
-          pedestrian: false                            # [-]
+          car: false                                   # [-] Disabled for closed park
+          truck: false                                 # [-] Disabled for closed park
+          bus: false                                   # [-] Disabled for closed park
+          trailer: false                               # [-] Disabled for closed park
+          unknown: true                                # [-] Keep for safety
+          bicycle: true                                # [-] Enable for park safety
+          motorcycle: false                            # [-] Disabled for closed park
+          pedestrian: true                             # [-] Enable for park safety

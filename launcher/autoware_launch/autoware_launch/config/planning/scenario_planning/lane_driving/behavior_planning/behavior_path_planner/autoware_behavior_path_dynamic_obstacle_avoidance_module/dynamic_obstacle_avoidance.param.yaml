@@ -6,39 +6,40 @@
         use_hatched_road_markings: true
 
       # avoidance is performed for the object type with true
+      # 园区内主要关注行人和自行车，避免对大型车误检，减少误报
       target_object:
-        car: true
-        truck: true
-        bus: true
-        trailer: true
-        unknown: false
+        car: false
+        truck: false
+        bus: false
+        trailer: false
+        unknown: true
         bicycle: true
-        motorcycle: true
+        motorcycle: false
         pedestrian: true
 
-        max_obstacle_vel: 100.0 # [m/s]
+        max_obstacle_vel: 10.0 # [m/s] 园区内车辆速度一般不超过10 m/s
         min_obstacle_vel: 0.0 # [m/s]
 
-        successive_num_to_entry_dynamic_avoidance_condition: 5
+        successive_num_to_entry_dynamic_avoidance_condition: 3 # 园区简单易控，可减少检测帧数要求，加快避碰反应速度
         successive_num_to_exit_dynamic_avoidance_condition: 1
 
-        min_obj_lat_offset_to_ego_path: 0.0 # [m]
-        max_obj_lat_offset_to_ego_path: 1.0 # [m]
+        min_obj_lat_offset_to_ego_path: 0.1 # [m] Increased for safety margin in low-speed operation
+        max_obj_lat_offset_to_ego_path: 0.8 # [m] Reduced for closed park paths
 
         cut_in_object:
-          min_time_to_start_cut_in: 1.0 # [s]
-          min_lon_offset_ego_to_object: 0.0 # [m]
-          min_object_vel: 0.5 # [m/s]
+          min_time_to_start_cut_in: 0.8 # [s] Reduced for quick response at low speed
+          min_lon_offset_ego_to_object: 0.2 # [m] Increased safety margin
+          min_object_vel: 0.3 # [m/s] Lower threshold for low-speed park 低速环境下需要检测更低速度的移动物体
 
         cut_out_object:
-          max_time_from_outside_ego_path: 2.0 # [s]
-          min_object_lat_vel: 0.3 # [m/s]
-          min_object_vel: 0.5 # [m/s]
+          max_time_from_outside_ego_path: 2.5 # [s] Increased for prediction at low speed
+          min_object_lat_vel: 0.2 # [m/s] Lower threshold for subtle movements
+          min_object_vel: 0.3 # [m/s] Lower threshold for low-speed environment
 
         crossing_object:
-          min_overtaking_object_vel: 1.0
+          min_overtaking_object_vel: 0.5
           max_overtaking_object_angle: 1.05
-          min_oncoming_object_vel: 1.0
+          min_oncoming_object_vel: 0.5
           max_oncoming_object_angle: 0.523
           max_pedestrian_crossing_vel: 0.8
 
@@ -54,30 +55,30 @@
         expand_drivable_area: false
         polygon_generation_method: "ego_path_base" # choose "ego_path_base" and "object_path_base"
         object_path_base:
-          min_longitudinal_polygon_margin: 3.0 # [m]
+          min_longitudinal_polygon_margin: 2.0 # [m] Reduced for narrow park paths
 
-        lat_offset_from_obstacle: 0.3 # [m]
-        margin_distance_around_pedestrian: 0.8 # [m]
+        lat_offset_from_obstacle: 0.5 # [m] Increased safety buffer
+        margin_distance_around_pedestrian: 1.0 # [m] Increased for pedestrian safety
         predicted_path:
-          end_time_to_consider: 1.0 # [s]
+          end_time_to_consider: 2.0 # [s] Doubled for better prediction at low speed
           threshold_confidence: 0.0 # [] not probability
-        max_lat_offset_to_avoid: 0.5 # [m]
-        max_time_for_object_lat_shift: 0.0 # [s]
-        lpf_gain_for_lat_avoid_to_offset: 0.9 # [-]
+        max_lat_offset_to_avoid: 0.6 # [m] Increased for lateral safety
+        max_time_for_object_lat_shift: 0.5 # [s] Added delay tolerance
+        lpf_gain_for_lat_avoid_to_offset: 0.8 # [-] Reduced for smoother motion
 
-        max_ego_lat_acc: 0.3        # [m/ss]
-        max_ego_lat_jerk: 0.3       # [m/sss]
-        delay_time_ego_shift: 1.0   # [s]
+        max_ego_lat_acc: 0.2        # [m/ss] Reduced for AGV stability and comfort
+        max_ego_lat_jerk: 0.15      # [m/sss] Reduced for smooth lateral motion
+        delay_time_ego_shift: 0.5   # [s] Reduced for quicker response
 
         # for same directional object
         overtaking_object:
-          max_time_to_collision: 40.0 # [s]
-          start_duration_to_avoid: 1.0  # [s]
-          end_duration_to_avoid: 1.0  # [s]
-          duration_to_hold_avoidance: 3.0 # [s]
+          max_time_to_collision: 20.0 # [s] Reduced for low-speed scenarios
+          start_duration_to_avoid: 0.8  # [s] Reduced for quicker reaction
+          end_duration_to_avoid: 0.8  # [s] Reduced for efficient avoidance
+          duration_to_hold_avoidance: 2.0 # [s] Reduced for continuous operation
 
         # for opposite directional object
         oncoming_object:
-          max_time_to_collision: 40.0 # [s] This value should be the same as overtaking_object's one to suppress chattering of this value for parked vehicles
-          start_duration_to_avoid: 1.0  # [s]
+          max_time_to_collision: 20.0 # [s] Reduced for low-speed scenarios
+          start_duration_to_avoid: 0.8  # [s] Reduced for quicker reaction
           end_duration_to_avoid: 0.0  # [s]

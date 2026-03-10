@@ -49,9 +49,12 @@ class LiveObstaclePublisher(Node):
         # obj.kinematics.pose_with_covariance.pose.position.z = 3.646
 
         ###### 单向-双车道
-        obj.kinematics.pose_with_covariance.pose.position.x = 14.029806137084961
-        obj.kinematics.pose_with_covariance.pose.position.y = 180.3141632080078
-        obj.kinematics.pose_with_covariance.pose.position.z = 3.646
+        # obj.kinematics.pose_with_covariance.pose.position.x = 14.029806137084961
+        # obj.kinematics.pose_with_covariance.pose.position.y = 180.3141632080078
+        # obj.kinematics.pose_with_covariance.pose.position.z = 3.646
+        obj.kinematics.pose_with_covariance.pose.position.x = -19.8
+        obj.kinematics.pose_with_covariance.pose.position.y = -1.41
+        obj.kinematics.pose_with_covariance.pose.position.z = 4.0
 
     
         # 严格复制你提供的四元数

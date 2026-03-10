@@ -2,10 +2,10 @@
   ros__parameters:
     lane_change:
       time_limit: 50.0 # [ms]
-      backward_lane_length: 200.0
-      backward_length_buffer_for_end_of_lane: 3.0 # [m]
-      backward_length_buffer_for_blocking_object: 3.0 # [m]
-      backward_length_from_intersection: 5.0 # [m]
+      backward_lane_length: 30.0              # Reduced for closed park narrow lanes 减小后车道长度，适应园区内狭窄道路
+      backward_length_buffer_for_end_of_lane: 2.0 # [m] Reduced for AGV
+      backward_length_buffer_for_blocking_object: 2.0 # [m] Reduced for AGV
+      backward_length_from_intersection: 3.0 # [m] Reduced for low-speed
       enable_stopped_vehicle_buffer: true
 
       # turn signal
@@ -19,14 +19,14 @@
 
       # trajectory generation
       trajectory:
-        max_prepare_duration: 4.0
-        min_prepare_duration: 2.0
-        lateral_jerk: 0.5
-        min_longitudinal_acc: -1.0
-        max_longitudinal_acc: 1.0
+        max_prepare_duration: 2.0               # Reduced for low-speed AGV
+        min_prepare_duration: 1.0               # Reduced for quick response
+        lateral_jerk: 0.2                       # Reduced for AGV stability
+        min_longitudinal_acc: -0.8              # Reduced for smooth braking
+        max_longitudinal_acc: 0.3               # Reduced for AGV capability
         th_prepare_length_diff: 1.0
         th_lane_changing_length_diff: 1.0
-        min_lane_changing_velocity: 2.78
+        min_lane_changing_velocity: 1.0         # Reduced for low-speed AGV
         lon_acc_sampling_num: 5
         lat_acc_sampling_num: 3
         lane_changing_decel_factor: 0.5
@@ -51,74 +51,74 @@
       safety_check:
         allow_loose_check_for_cancel: true
         enable_target_lane_bound_check: true
-        stopped_object_velocity_threshold: 0.3          # [m/s] Object whose velocity is less than the threshold is treated as static object.
-        prepare:                                        # RSS parameters used during the prepare phase, regardless of whether the ego is searching for a safe path, canceling, or transitioning to another state.
-          expected_front_deceleration: -1.0             # [m/s2]
-          expected_rear_deceleration: -1.0              # [m/s2]
+        stopped_object_velocity_threshold: 0.3          # [m/s]
+        prepare:
+          expected_front_deceleration: -0.8             # [m/s2] Reduced for low-speed
+          expected_rear_deceleration: -0.8              # [m/s2] Reduced for low-speed
           rear_vehicle_reaction_time: 1.0               # [s]
-          rear_vehicle_safety_time_margin: 0.8          # [s]
-          lateral_distance_max_threshold: 0.5           # [m]
-          longitudinal_distance_min_threshold: 1.0      # [m]
+          rear_vehicle_safety_time_margin: 1.0          # [s] Increased for safety
+          lateral_distance_max_threshold: 1.0           # [m] Increased from 0.5
+          longitudinal_distance_min_threshold: 1.5      # [m] Increased from 1.0
           longitudinal_velocity_delta_time: 0.0         # [s]
-          extended_polygon_policy: "along_path"         # [-] available options are `rectangle` or `along_path`
+          extended_polygon_policy: "along_path"         # [-]
         execution:
-          expected_front_deceleration: -1.0
-          expected_rear_deceleration: -1.0
+          expected_front_deceleration: -0.8
+          expected_rear_deceleration: -0.8
           rear_vehicle_reaction_time: 2.0
-          rear_vehicle_safety_time_margin: 1.0
-          lateral_distance_max_threshold: 2.0
-          longitudinal_distance_min_threshold: 3.0
-          longitudinal_velocity_delta_time: 0.0
+          rear_vehicle_safety_time_margin: 1.2          # [s] Increased from 1.0
+          lateral_distance_max_threshold: 2.5           # [m] Increased from 2.0
+          longitudinal_distance_min_threshold: 3.5      # [m] Increased from 3.0
+          longitudinal_velocity_delta_time: 0.0         # [s]
           extended_polygon_policy: "rectangle"
         parked:
-          expected_front_deceleration: -1.0
-          expected_rear_deceleration: -2.0
-          rear_vehicle_reaction_time: 1.0
-          rear_vehicle_safety_time_margin: 0.8
-          lateral_distance_max_threshold: 1.0
-          longitudinal_distance_min_threshold: 3.0
-          longitudinal_velocity_delta_time: 0.0
+          expected_front_deceleration: -0.8
+          expected_rear_deceleration: -1.0              # [m/s2] Reduced from -2.0
+          rear_vehicle_reaction_time: 1.0               # [s]
+          rear_vehicle_safety_time_margin: 1.0          # [s] Increased from 0.8
+          lateral_distance_max_threshold: 1.2           # [m] Increased from 1.0
+          longitudinal_distance_min_threshold: 3.5      # [m] Increased from 3.0
+          longitudinal_velocity_delta_time: 0.0         # [s]
           extended_polygon_policy: "rectangle"
         cancel:
-          expected_front_deceleration: -1.0
-          expected_rear_deceleration: -2.0
+          expected_front_deceleration: -0.8
+          expected_rear_deceleration: -1.0              # [m/s2] Reduced from -2.0
           rear_vehicle_reaction_time: 1.5
-          rear_vehicle_safety_time_margin: 0.8
-          lateral_distance_max_threshold: 1.0
-          longitudinal_distance_min_threshold: 2.5
-          longitudinal_velocity_delta_time: 0.0
+          rear_vehicle_safety_time_margin: 1.0          # [s] Increased from 0.8
+          lateral_distance_max_threshold: 1.2           # [m] Increased from 1.0
+          longitudinal_distance_min_threshold: 3.0      # [m] Increased from 2.5
+          longitudinal_velocity_delta_time: 0.0         # [s]
           extended_polygon_policy: "rectangle"
         stuck:
-          expected_front_deceleration: -1.0
-          expected_rear_deceleration: -1.0
+          expected_front_deceleration: -0.8
+          expected_rear_deceleration: -0.8
           rear_vehicle_reaction_time: 2.0
-          rear_vehicle_safety_time_margin: 1.0
-          lateral_distance_max_threshold: 2.0
-          longitudinal_distance_min_threshold: 3.0
-          longitudinal_velocity_delta_time: 0.0
+          rear_vehicle_safety_time_margin: 1.2          # [s] Increased from 1.0
+          lateral_distance_max_threshold: 2.5           # [m] Increased from 2.0
+          longitudinal_distance_min_threshold: 3.5      # [m] Increased from 3.0
+          longitudinal_velocity_delta_time: 0.0         # [s]
           extended_polygon_policy: "rectangle"
 
         # lane expansion for object filtering
         lane_expansion:
-          left_offset: 1.0 # [m]
-          right_offset: 1.0 # [m]
+          left_offset: 0.8  # [m] Reduced for narrow park lanes
+          right_offset: 0.8 # [m] Reduced for narrow park lanes
 
       # lateral acceleration map
       lateral_acceleration:
-        velocity: [0.0, 4.0, 10.0]
-        min_values: [0.4, 0.4, 0.4]
-        max_values: [0.65, 0.65, 0.65]
+        velocity: [0.0, 2.5, 4.5]               # Reduced for low-speed AGV
+        min_values: [0.2, 0.2, 0.2]             # Reduced from 0.4
+        max_values: [0.3, 0.3, 0.3]             # Reduced from 0.65
 
       # target object
       target_object:
-        car: true
-        truck: true
-        bus: true
-        trailer: true
-        unknown: false
-        bicycle: true
-        motorcycle: true
-        pedestrian: true
+        car: false                              # Disabled for closed park
+        truck: false                            # Disabled for closed park
+        bus: false                              # Disabled for closed park
+        trailer: false                          # Disabled for closed park
+        unknown: true                           # Enable for safety
+        bicycle: true                           # Enable for park safety
+        motorcycle: false                       # Disabled for closed park
+        pedestrian: true                        # Enable for park safety
 
       # collision check
       collision_check:
@@ -137,8 +137,8 @@
 
       # ego vehicle stuck detection
       stuck_detection:
-        velocity: 0.5 # [m/s]
-        stop_time: 3.0 # [s]
+        velocity: 0.3 # [m/s] Reduced for low-speed AGV
+        stop_time: 2.0 # [s] Reduced for quick detection
 
       # lane change cancel
       cancel:
@@ -151,9 +151,9 @@
         unsafe_hysteresis_threshold: 5      # [/]
         deceleration_sampling_num: 1        # [/] Used to sample the approved lane change path, specifically for checking safety against leading objects.
 
-      lane_change_finish_judge_buffer: 2.0      # [m]
-      finish_judge_lateral_threshold: 0.1        # [m]
-      finish_judge_lateral_angle_deviation: 1.0 # [deg]
+      lane_change_finish_judge_buffer: 1.0      # [m] Reduced for AGV
+      finish_judge_lateral_threshold: 0.05     # [m] Reduced for precision
+      finish_judge_lateral_angle_deviation: 0.5 # [deg] Reduced for AGV
 
       # debug
       publish_debug_marker: true

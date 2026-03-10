@@ -95,7 +95,7 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
   const auto & data = avoidance_data_;
 
   if (data.target_objects.empty()) {
-    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000, 
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 3000, 
       "[AvoidByLC] Module NOT activated: No target objects detected");
     return false;
   }
@@ -116,7 +116,7 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
     std::accumulate(object_parameters.begin(), object_parameters.end(), 0UL, count_target_object);
 
   if (num_of_avoidance_targets < 1) {
-    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000,
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 3000,
       "[AvoidByLC] Module NOT activated: No avoidance target found (total_objects=%zu, avoidance_required=0)",
       data.target_objects.size());
     return false;
@@ -134,11 +134,11 @@ bool AvoidanceByLaneChange::specialRequiredCheck() const
   const bool distance_check = nearest_object.longitudinal > required_distance;
   
   if (!distance_check) {
-    RCLCPP_WARN_THROTTLE(logger_, *clock_, 3000,
+    RCLCPP_WARN_THROTTLE(logger_, clock_, 3000,
       "[AvoidByLC] Module NOT activated: Insufficient distance (obj_dist=%.2f < required=%.2f [LC=%.2f, Avoid=%.2f])",
       nearest_object.longitudinal, required_distance, minimum_lane_change_length, minimum_avoid_length);
   } else {
-    RCLCPP_INFO_THROTTLE(logger_, *clock_, 5000,
+    RCLCPP_INFO_THROTTLE(logger_, clock_, 5000,
       "[AvoidByLC] Module ACTIVATED: targets=%lu, obj_dist=%.2f > required=%.2f",
       num_of_avoidance_targets, nearest_object.longitudinal, required_distance);
   }
@@ -209,6 +209,11 @@ void AvoidanceByLaneChange::fillAvoidanceTargetObjects(
         return utils::path_safety_checker::isPolygonOverlapLanelet(obj, lane, yaw_threshold);
       });
 
+  RCLCPP_INFO(
+    logger_, "[AvoidByLC] Objects: total=%zu, in_lane=%zu, out_lane=%zu",
+    planner_data_->dynamic_object->objects.size(), object_within_target_lane.objects.size(),
+    object_outside_target_lane.objects.size());
+
   // Assume that the maximum allocation for data.other object is the sum of
   // objects_within_target_lane and object_outside_target_lane. The maximum allocation for
   // data.target_objects is equal to object_within_target_lane
@@ -238,7 +243,7 @@ void AvoidanceByLaneChange::fillAvoidanceTargetObjects(
     if (!target_lane_object) {
       continue;
     }
-
+    RCLCPP_INFO(logger_, "[AvoidByLC] Target object added: ");
     target_lane_objects.push_back(*target_lane_object);
   }
 

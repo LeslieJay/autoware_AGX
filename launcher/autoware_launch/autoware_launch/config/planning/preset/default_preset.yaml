@@ -38,7 +38,7 @@ launch:
       default: "true"
   - arg:
       name: launch_side_shift_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_bidirectional_traffic_module
       default: "false"
@@ -90,9 +90,9 @@ launch:
   # motion planning modules
   - arg:
       name: motion_path_smoother_type
-      default: elastic_band
+      default: none
       # option: elastic_band
-      #         none
+      #         none  平滑几何路径，低速AGV情况下路径不平滑影响也不大，而且本身得到的路径就比较平滑，所以不开启
 
   - arg:
       name: motion_path_planner_type
@@ -110,25 +110,25 @@ launch:
       default: "true"
   - arg:
       name: launch_obstacle_cruise_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_dynamic_obstacle_stop_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_out_of_lane_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_obstacle_velocity_limiter_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_run_out_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_boundary_departure_prevention_module
-      default: "true"
+      default: "false"
   - arg:
       name: launch_road_user_stop_module
-      default: "true"
+      default: "false"
 
   - arg:
       name: velocity_smoother_type
@@ -145,7 +145,7 @@ launch:
   # parking modules
   - arg:
       name: launch_parking_module
-      default: "true"
+      default: "false"
 
   # validator modules
   - arg:

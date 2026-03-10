@@ -13,9 +13,9 @@
         minimum_weighted_distance:
           lateral_weight: 40.0
         prioritize_goals_before_objects: true
-        parking_policy: "left_side" # "left_side" or "right_side"
-        forward_goal_search_length: 40.0
-        backward_goal_search_length: 20.0
+        parking_policy: "right_side" # "left_side" or "right_side"
+        forward_goal_search_length: 15.0
+        backward_goal_search_length: 5.0
         goal_search_interval: 2.0
         longitudinal_margin: 3.0
         max_lateral_offset: 1.0
@@ -55,11 +55,11 @@
       # pull over
       pull_over:
         minimum_request_length: 0.0
-        approximate_pull_over_distance: 20.0
-        pull_over_prepare_length: 100.0
-        pull_over_velocity: 3.0
+        approximate_pull_over_distance: 10.0
+        pull_over_prepare_length: 10.0
+        pull_over_velocity: 2.0
         pull_over_minimum_velocity: 1.38
-        decide_path_distance: 10.0
+        decide_path_distance: 5.0
         maximum_deceleration: 1.0
         maximum_jerk: 1.0
         low_velocity_threshold: 1.38
@@ -95,7 +95,7 @@
 
         # freespace parking
         freespace_parking:
-          enable_freespace_parking: true
+          enable_freespace_parking: false # 不启用freespace parking，因为AGV通常在车道内行驶
           freespace_parking_algorithm: "astar"  # options: astar, rrtstar
           velocity: 1.0
           vehicle_shape_margin: 1.0
@@ -158,8 +158,8 @@
           safety_check_time_horizon: 5.0
           safety_check_time_resolution: 1.0
           # detection range
-          object_check_forward_distance: 100.0
-          object_check_backward_distance: 100.0
+          object_check_forward_distance: 30.0 # 碰撞检测距离，AGV通常速度较慢，可以适当降低检测距离以减少计算量
+          object_check_backward_distance: 10.0
           ignore_object_velocity_threshold: 0.25
           # ObjectTypesToCheck
           object_types_to_check:
@@ -170,7 +170,7 @@
             check_bicycle: true
             check_motorcycle: true
             check_pedestrian: true
-            check_unknown: false
+            check_unknown: true # 对未知类型的障碍物进行检查，以提高安全性
           # ObjectLaneConfiguration
           object_lane_configuration:
             check_current_lane: true
@@ -207,8 +207,8 @@
           hysteresis_factor_expand_rate: 1.0
           collision_check_yaw_diff_threshold: 3.1416
           # temporary
-          backward_path_length: 30.0
-          forward_path_length: 100.0
+          backward_path_length: 5.0
+          forward_path_length: 30.0
 
       # debug
       debug:

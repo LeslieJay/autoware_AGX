@@ -249,6 +249,10 @@ std::pair<PredictedObjects, PredictedObjects> separateObjectsByLanelets(
   const auto [target_indices, other_indices] =
     separateObjectIndicesByLanelets(objects, target_lanelets, condition, yaw_threshold);
 
+  RCLCPP_INFO(
+    rclcpp::get_logger("objects_filtering"),
+    "Separated objects: target_indices size = %zu, other_indices size = %zu",
+    target_indices.size(), other_indices.size());
   target_objects.objects.reserve(target_indices.size());
   other_objects.objects.reserve(other_indices.size());
 
