@@ -236,10 +236,10 @@
       avoidance:
         # avoidance lateral parameters
         lateral:
-          th_avoid_execution: 0.09                      # [m] FOR DEVELOPER
-          th_small_shift_length: 0.101                  # [m] FOR DEVELOPER
-          soft_drivable_bound_margin: 0.3               # [m]
-          hard_drivable_bound_margin: 0.3               # [m]
+          th_avoid_execution: 0.09                      # [m] 偏移阈值，达到该偏移量才执行绕障动作。
+          th_small_shift_length: 0.101                  # [m] 小偏移判断阈值，避免微小偏移生成多余轨迹
+          soft_drivable_bound_margin: 0.3               # [m] 软边界安全距离，影响曲线能偏移的最大范围
+          hard_drivable_bound_margin: 0.3               # [m] 硬边界安全距离，绕障路径不能超出该限制
           max_right_shift_length: 5.0                   # [m] FOR DEVELOPER
           max_left_shift_length: 5.0                    # [m] FOR DEVELOPER
           max_deviation_from_lane: 0.2                  # [m]

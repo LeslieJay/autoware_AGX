@@ -19,6 +19,14 @@
 namespace reverse_parking_controller
 {
 
+/**
+ * @brief 逆向停车控制节点构造函数。
+ * @details 负责：
+ * - 声明并读取控制相关参数（纯跟踪、PID、到达判定、限幅等）
+ * - 初始化 TF buffer/listener
+ * - 创建订阅/发布者（轨迹/里程计 → 控制/档位/灯光/调试 Marker）
+ * - 创建周期性定时器驱动主控制循环
+ */
 ReverseParkingControllerNode::ReverseParkingControllerNode(const rclcpp::NodeOptions & options)
 : Node("reverse_parking_controller", options)
 {
@@ -98,6 +106,15 @@ ReverseParkingControllerNode::ReverseParkingControllerNode(const rclcpp::NodeOpt
 // 回调函数
 // ============================================================================
 
+/**
+ * @brief 控制循环定时器回调。
+ * @details 主控制逻辑：
+ * - 数据检查（里程计与轨迹）
+ * - 终点到达判定
+ * - 最近点与前视点搜索
+ * - 横向纯跟踪、纵向 PID 控制
+ * - 发布控制/档位/灯光/调试 Marker
+ */
 void ReverseParkingControllerNode::onTimer()
 {
   // 检查数据是否就绪
@@ -109,6 +126,9 @@ void ReverseParkingControllerNode::onTimer()
   if (!current_trajectory_ || current_trajectory_->points.empty()) {
     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000, "Waiting for trajectory...");
     // 没有轨迹时，发布停车指令
+    // - 目标速度 0
+    // - 使用最大减速度进行制动
+    // - 档位切换到前进（is_reverse = false），并打开危险警示灯
     publishControlCmd(0.0, max_deceleration_, 0.0);
     publishGearCmd(false);
     publishIndicatorCmds(false, true);
@@ -120,6 +140,7 @@ void ReverseParkingControllerNode::onTimer()
 
   // 检查是否到达终点
   if (isGoalReached(current_pose, *current_trajectory_)) {
+    // 只在状态切换到“首次到达”时打印日志，避免重复刷屏
     if (!is_goal_reached_) {
       RCLCPP_INFO(get_logger(), "Goal reached! Stopping.");
       is_goal_reached_ = true;
@@ -135,6 +156,9 @@ void ReverseParkingControllerNode::onTimer()
   is_active_ = true;
 
   // 找到最近轨迹点
+  // 最近点用于：
+  // - 判定当前轨迹段是前进还是倒车（看速度正负）
+  // - 作为查找前视点的起始索引，减少搜索范围
   const size_t nearest_idx = findNearestIndex(current_pose, *current_trajectory_);
   const auto & nearest_pt = current_trajectory_->points[nearest_idx];
 
@@ -143,6 +167,9 @@ void ReverseParkingControllerNode::onTimer()
   const double target_velocity = nearest_pt.longitudinal_velocity_mps;
 
   // 计算自适应前视距离
+  // 使用速度自适应前视距离：
+  // - 速度越快，前视越远，增强平滑性
+  // - 速度很小时至少保持 min_lookahead_distance_
   const double adaptive_lookahead =
     std::max(min_lookahead_distance_,
              lookahead_ratio_ * std::abs(current_velocity));
@@ -160,6 +187,9 @@ void ReverseParkingControllerNode::onTimer()
   const double acceleration = calcAcceleration(target_velocity, current_velocity);
 
   // ---- 发布控制指令 ----
+  // 注意：
+  // - publishControlCmd 内部会对速度取绝对值（控制模块仅关心速度大小）
+  // - 倒车/前进由 publishGearCmd 的 is_reverse 控制
   publishControlCmd(steering_angle, acceleration, target_velocity);
   publishGearCmd(is_reverse);
   publishIndicatorCmds(is_reverse, std::abs(current_velocity) < stop_velocity_threshold_);
@@ -168,6 +198,10 @@ void ReverseParkingControllerNode::onTimer()
   publishDebugMarkers(current_pose, nearest_idx, lookahead_idx);
 }
 
+/**
+ * @brief 轨迹话题回调：接收逆向停车规划器生成的轨迹。
+ * @details 会重置纵向 PID 状态，以避免新轨迹切换时残留积分/微分。
+ */
 void ReverseParkingControllerNode::onTrajectory(
   const autoware_planning_msgs::msg::Trajectory::ConstSharedPtr msg)
 {
@@ -181,6 +215,9 @@ void ReverseParkingControllerNode::onTrajectory(
   RCLCPP_INFO(get_logger(), "Received trajectory with %zu points", msg->points.size());
 }
 
+/**
+ * @brief 里程计话题回调：缓存车辆当前状态。
+ */
 void ReverseParkingControllerNode::onOdometry(
   const nav_msgs::msg::Odometry::ConstSharedPtr msg)
 {
@@ -191,6 +228,14 @@ void ReverseParkingControllerNode::onOdometry(
 // 控制算法
 // ============================================================================
 
+/**
+ * @brief 计算 Pure Pursuit 横向控制转向角。
+ * @param current_pose 当前车辆位姿（map 坐标系）
+ * @param trajectory 当前跟踪的轨迹
+ * @param lookahead_idx 前视目标点在轨迹中的索引
+ * @param is_reverse 当前所在轨迹段是否为倒车（根据轨迹点速度符号判断）
+ * @return 前轮转向角（弧度），已做左右最大转向角限幅
+ */
 double ReverseParkingControllerNode::calcSteeringAngle(
   const geometry_msgs::msg::Pose & current_pose,
   const autoware_planning_msgs::msg::Trajectory & trajectory,
@@ -210,6 +255,7 @@ double ReverseParkingControllerNode::calcSteeringAngle(
   // 计算到目标点的距离
   const double distance = std::sqrt(local_x * local_x + local_y * local_y);
   if (distance < 1e-6) {
+    // 若目标点几乎在当前车位姿处，认为无需转向
     return 0.0;
   }
 
@@ -236,6 +282,12 @@ double ReverseParkingControllerNode::calcSteeringAngle(
   return steering;
 }
 
+/**
+ * @brief 纵向 PID 控制计算加速度指令。
+ * @param target_velocity 目标速度（允许为负，负表示倒车）
+ * @param current_velocity 当前车辆速度
+ * @return 期望纵向加速度（已做最大加/减速度限幅）
+ */
 double ReverseParkingControllerNode::calcAcceleration(
   double target_velocity, double current_velocity)
 {
@@ -243,6 +295,7 @@ double ReverseParkingControllerNode::calcAcceleration(
   const double dt = (current_time - prev_time_).seconds();
   prev_time_ = current_time;
 
+  // 若时间间隔异常（过小/过大），直接返回 0，避免 PID 放大数值噪声。
   if (dt <= 0.0 || dt > 1.0) {
     return 0.0;
   }
@@ -269,6 +322,10 @@ double ReverseParkingControllerNode::calcAcceleration(
   return acceleration;
 }
 
+/**
+ * @brief 在轨迹中查找与当前车辆位置最近的轨迹点索引。
+ * @details 使用平面距离平方进行比较（避免不必要的开方运算）。
+ */
 size_t ReverseParkingControllerNode::findNearestIndex(
   const geometry_msgs::msg::Pose & current_pose,
   const autoware_planning_msgs::msg::Trajectory & trajectory) const
@@ -289,6 +346,12 @@ size_t ReverseParkingControllerNode::findNearestIndex(
   return nearest_idx;
 }
 
+/**
+ * @brief 沿轨迹从最近点向前累积弧长，查找满足前视距离的目标点索引。
+ * @details
+ * - 优先使用轨迹弧长（点间距离累计）达到 lookahead_distance
+ * - 若仍与车辆距离过近，且非终点，则向前再推一个点，保证前视点足够“向前”
+ */
 size_t ReverseParkingControllerNode::findLookaheadIndex(
   const geometry_msgs::msg::Pose & current_pose,
   const autoware_planning_msgs::msg::Trajectory & trajectory,
@@ -323,6 +386,12 @@ size_t ReverseParkingControllerNode::findLookaheadIndex(
   return lookahead_idx;
 }
 
+/**
+ * @brief 判断车辆是否已经到达轨迹终点。
+ * @details 判断条件：
+ * - 与终点位置的欧氏距离 < goal_distance_threshold_
+ * - 与终点朝向的偏差（归一化后） < goal_yaw_threshold_
+ */
 bool ReverseParkingControllerNode::isGoalReached(
   const geometry_msgs::msg::Pose & current_pose,
   const autoware_planning_msgs::msg::Trajectory & trajectory) const
@@ -347,6 +416,12 @@ bool ReverseParkingControllerNode::isGoalReached(
 // 发布函数
 // ============================================================================
 
+/**
+ * @brief 发布 Autoware Control 消息。
+ * @param steering_angle 前轮转角（弧度）
+ * @param acceleration 纵向加速度（m/s^2）
+ * @param target_velocity 目标车速（可为负，内部会取绝对值发布）
+ */
 void ReverseParkingControllerNode::publishControlCmd(
   double steering_angle, double acceleration, double target_velocity)
 {
@@ -365,6 +440,13 @@ void ReverseParkingControllerNode::publishControlCmd(
   control_cmd_pub_->publish(cmd);
 }
 
+/**
+ * @brief 发布档位命令。
+ * @param is_reverse 当前是否为倒车轨迹段
+ * @details
+ * - 若已经到达终点，则切换到 PARK 挡
+ * - 未到达终点时，根据 is_reverse 选择 DRIVE / REVERSE
+ */
 void ReverseParkingControllerNode::publishGearCmd(bool is_reverse)
 {
   autoware_vehicle_msgs::msg::GearCommand gear_cmd;
@@ -381,6 +463,11 @@ void ReverseParkingControllerNode::publishGearCmd(bool is_reverse)
   gear_cmd_pub_->publish(gear_cmd);
 }
 
+/**
+ * @brief 发布转向灯与危险警示灯命令。
+ * @param is_reverse 当前是否倒车
+ * @param is_stopped 当前车辆是否接近静止（根据速度阈值判定）
+ */
 void ReverseParkingControllerNode::publishIndicatorCmds(bool is_reverse, bool is_stopped)
 {
   // 转向灯：倒车时无需开转向灯（根据实际需求可调整）
@@ -400,6 +487,13 @@ void ReverseParkingControllerNode::publishIndicatorCmds(bool is_reverse, bool is
   hazard_light_cmd_pub_->publish(hazard_cmd);
 }
 
+/**
+ * @brief 发布调试可视化 Marker。
+ * @details 包含三类 Marker：
+ * - 最近轨迹点 SPHERE（黄色）
+ * - 前视点 SPHERE（蓝色）
+ * - 车辆位置到前视点的连线 LINE_STRIP（青色）
+ */
 void ReverseParkingControllerNode::publishDebugMarkers(
   const geometry_msgs::msg::Pose & current_pose,
   size_t nearest_idx, size_t lookahead_idx)
@@ -488,8 +582,12 @@ void ReverseParkingControllerNode::publishDebugMarkers(
   debug_marker_pub_->publish(markers);
 }
 
+/**
+ * @brief 将角度归一化到 [-pi, pi]。
+ */
 double ReverseParkingControllerNode::normalizeAngle(double angle) const
 {
+  // 通过循环加/减 2pi 把角度推回目标区间，避免角度累积导致控制抖动。
   while (angle > M_PI) angle -= 2.0 * M_PI;
   while (angle < -M_PI) angle += 2.0 * M_PI;
   return angle;

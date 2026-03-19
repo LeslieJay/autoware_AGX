@@ -73,61 +73,53 @@ bool LaneChangeInterface::isExecutionRequested() const
   }
 
   const auto is_lc_required = module_type_->isLaneChangeRequired();
-  RCLCPP_INFO(getLogger(), "  - isLaneChangeRequired(): %s", is_lc_required ? "TRUE" : "FALSE");
-  RCLCPP_INFO(getLogger(), "  - Final Result: %s", is_lc_required ? "TRUE" : "FALSE");
+  // RCLCPP_INFO(getLogger(), "  - isLaneChangeRequired(): %s", is_lc_required ? "TRUE" : "FALSE");
+  // RCLCPP_INFO(getLogger(), "  - Final Result: %s", is_lc_required ? "TRUE" : "FALSE");
   
   return is_lc_required;
 }
 
 bool LaneChangeInterface::isExecutionReady() const
 {
-  RCLCPP_INFO(getLogger(), "[LaneChangeInterface::isExecutionReady] Checking execution readiness");
+  // RCLCPP_INFO(getLogger(), "[LaneChangeInterface::isExecutionReady] Checking execution readiness");
   
   const auto is_safe = module_type_->isSafe();
-  RCLCPP_INFO(getLogger(), "  - isSafe(): %s", is_safe ? "TRUE" : "FALSE");
+  // RCLCPP_INFO(getLogger(), "  - isSafe(): %s", is_safe ? "TRUE" : "FALSE");
   
   const auto is_abort_state = module_type_->isAbortState();
-  RCLCPP_INFO(getLogger(), "  - isAbortState(): %s", is_abort_state ? "TRUE" : "FALSE");
+  // RCLCPP_INFO(getLogger(), "  - isAbortState(): %s", is_abort_state ? "TRUE" : "FALSE");
   
   const bool result = is_safe && !is_abort_state;
-  RCLCPP_INFO(getLogger(), "  - Final Result (isSafe AND NOT AbortState): %s", result ? "TRUE" : "FALSE");
+  // RCLCPP_INFO(getLogger(), "  - Final Result (isSafe AND NOT AbortState): %s", result ? "TRUE" : "FALSE");
   
   return result;
 }
 
 void LaneChangeInterface::updateData()
 {
-  RCLCPP_INFO(getLogger(), "[LaneChangeInterface::updateData] Starting data update");
+  // RCLCPP_INFO(getLogger(), "[LaneChangeInterface::updateData] Starting data update");
   
   autoware_utils::ScopedTimeTrack st(__func__, *getTimeKeeper());
   
-  RCLCPP_INFO(getLogger(), "  - Setting previous module output");
   module_type_->setPreviousModuleOutput(getPreviousModuleOutput());
   
   const auto current_status = getCurrentStatus();
   const bool is_running = (current_status == ModuleStatus::RUNNING);
-  RCLCPP_INFO(getLogger(), "  - Updating lanes (is_running=%s)", is_running ? "TRUE" : "FALSE");
   module_type_->update_lanes(is_running);
   
-  RCLCPP_INFO(getLogger(), "  - Updating filtered objects");
   module_type_->update_filtered_objects();
   
-  RCLCPP_INFO(getLogger(), "  - Updating transient data");
   module_type_->update_transient_data(is_running);
   
-  RCLCPP_INFO(getLogger(), "  - Updating special data");
   module_type_->updateSpecialData();
 
   if (isWaitingApproval() || module_type_->isAbortState()) {
-    RCLCPP_INFO(getLogger(), "  - Updating lane change status (waiting_approval or abort_state)");
     module_type_->updateLaneChangeStatus();
   }
 
-  RCLCPP_INFO(getLogger(), "  - Resetting stop pose");
   module_type_->resetStopPose();
   updateDebugMarker();
   
-  RCLCPP_INFO(getLogger(), "[LaneChangeInterface::updateData] Data update completed");
 }
 
 void LaneChangeInterface::postProcess()

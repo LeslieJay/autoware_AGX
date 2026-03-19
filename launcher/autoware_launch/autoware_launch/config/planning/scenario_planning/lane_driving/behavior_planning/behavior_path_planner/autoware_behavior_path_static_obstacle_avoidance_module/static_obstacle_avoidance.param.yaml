@@ -67,9 +67,9 @@
           th_moving_time: 1.0
           longitudinal_margin: 0.0
           lateral_margin:
-            soft_margin: 0.5
-            hard_margin: -0.2
-            hard_margin_for_parked_vehicle: -0.2
+            soft_margin: 2.0
+            hard_margin: 2.0
+            hard_margin_for_parked_vehicle: 0.5
           max_expand_ratio: 0.0
           envelope_buffer_margin: 0.1
           th_error_eclipse_long_radius : 0.6
@@ -137,8 +137,8 @@
 
         # filtering parking objects
         parked_vehicle:
-          th_offset_from_centerline: 0.3                # [m] (lowered to detect roadside vehicles earlier)
-          th_shiftable_ratio: 0.1                       # [-] (lowered to more easily classify as parked)
+          th_offset_from_centerline: 0.0                # [m] (lowered to detect roadside vehicles earlier)
+          th_shiftable_ratio: 0.0                       # [-] (lowered to more easily classify as parked)
           min_road_shoulder_width: 0.5                  # [m] FOR DEVELOPER
 
         # for merging/deviating vehicle
@@ -155,7 +155,7 @@
           # "ignore" : never avoid it.
           policy: "auto"                                # [-] (auto-avoid ambiguous vehicles)
           condition:
-            th_stopped_time: 1.0                        # [s] (shorter required stop time)
+            th_stopped_time: 0.1                        # [s] (shorter required stop time)
             th_moving_distance: 1.0                     # [m]
           ignore_area:
             traffic_light:
@@ -237,12 +237,12 @@
       avoidance:
         # avoidance lateral parameters
         lateral:
-          th_avoid_execution: 0.09                      # [m] FOR DEVELOPER
-          th_small_shift_length: 0.101                  # [m] FOR DEVELOPER
-          soft_drivable_bound_margin: 0.3               # [m]
-          hard_drivable_bound_margin: 0.3               # [m]
-          max_right_shift_length: 0.8                   # [m] Reduced for narrow park paths
-          max_left_shift_length: 0.8                    # [m] Reduced for narrow park paths
+          th_avoid_execution: 0.09                      # [m] 偏移阈值，达到该偏移量才执行绕障动作。
+          th_small_shift_length: 0.101                  # [m] 小偏移判断阈值，避免微小偏移生成多余轨迹
+          soft_drivable_bound_margin: 0.3               # [m] 软边界安全距离，影响曲线能偏移的最大范围
+          hard_drivable_bound_margin: 0.3               # [m] 硬边界安全距离，绕障路径不能超出该限制
+          max_right_shift_length: 3.0                   # [m] 最大右/左偏移量，决定曲线横向移动极限
+          max_left_shift_length: 3.0                    # [m]
           max_deviation_from_lane: 0.15                 # [m] Increased for narrow lanes
           # approve the next shift line after reaching this percentage of the current shift line length.
           # this parameter is added to allow waiting for the return of shift approval until the occlusion behind the avoid target is clear.
@@ -256,8 +256,8 @@
           min_slow_down_speed: 0.5                      # [m/s] Reduced for low-speed AGV
           buf_slow_down_speed: 0.3                      # [m/s] Reduced for low-speed AGV
           nominal_avoidance_speed: 1.5                  # [m/s] Reduced for low-speed avoidance
-          consider_front_overhang: true                 # [-]
-          consider_rear_overhang: true                  # [-]
+          consider_front_overhang: false                 # [-]
+          consider_rear_overhang: false                  # [-]
         # return dead line
         return_dead_line:
           goal:

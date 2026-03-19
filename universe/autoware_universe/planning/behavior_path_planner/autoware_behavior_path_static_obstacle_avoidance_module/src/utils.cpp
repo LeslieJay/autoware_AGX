@@ -1234,7 +1234,7 @@ std::optional<double> getAvoidMargin(
   const auto object_parameter = parameters->object_parameters.at(object_type);
   const auto lateral_hard_margin = object.is_parked
                                      ? object_parameter.lateral_hard_margin_for_parked_vehicle
-                                     : object_parameter.lateral_hard_margin;
+                                     : object_parameter.lateral_hard_margin; // 根据是否为parked_vehicle，选择margin
 
   const auto max_avoid_margin = lateral_hard_margin * object.distance_factor +
                                 object_parameter.lateral_soft_margin + 0.5 * vehicle_width;
@@ -1244,7 +1244,9 @@ std::optional<double> getAvoidMargin(
   const auto hard_lateral_distance_limit =
     object.to_road_shoulder_distance - parameters->hard_drivable_bound_margin - 0.5 * vehicle_width;
 
-  // Step1. check avoidable or not.
+  RCLCPP_INFO(rclcpp::get_logger(logger_namespace), "soft_lateral_distance_limit: %f, max_avoid_margin: %f, hard_lateral_distance_limit: %f, min_avoid_margin: %f", soft_lateral_distance_limit, max_avoid_margin, hard_lateral_distance_limit, min_avoid_margin);
+
+    // Step1. check avoidable or not.
   if (hard_lateral_distance_limit < min_avoid_margin) {
     return std::nullopt;
   }
@@ -2277,7 +2279,7 @@ void filterTargetObjects(
       }
       o.avoid_margin = filtering_utils::getAvoidMargin(o, planner_data, parameters);
     } else if (filtering_utils::isVehicleTypeObject(o)) {
-      // TARGET: CAR, TRUCK, BUS, TRAILER, MOTORCYCLE
+      // TARGET: CAR, TRUCK, BUS, TRAILER, MOTORCYCLE, UNKOWN
       o.behavior = filtering_utils::getObjectBehavior(o, parameters);
       o.is_on_ego_lane = filtering_utils::isOnEgoLane(o, planner_data->route_handler);
 

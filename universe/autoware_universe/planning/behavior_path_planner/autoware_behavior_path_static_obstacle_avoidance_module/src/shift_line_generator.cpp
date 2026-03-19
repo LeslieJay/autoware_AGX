@@ -398,7 +398,7 @@ AvoidOutlines ShiftLineGenerator::generateAvoidOutline(
       al_return.object = o;
       al_return.object_on_right = utils::static_obstacle_avoidance::isOnRight(o);
     }
-
+    // 检查是否忽略返回偏移
     const bool skip_return_shift = [&]() {
       if (!utils::isAllowedGoalModification(data_->route_handler)) {
         return false;

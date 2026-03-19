@@ -602,6 +602,11 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
                avoidance_ready.first;
   data.request_operator =
     is_operator_approval_required(data.candidate_path, debug) || avoidance_ready.second;// 强制改为 false
+
+  RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 1000,
+    "[AVOIDANCE_DEBUG] safe=%d comfortable=%d valid=%d ready=%d request_op=%d new_sl_size=%zu",
+    data.safe, data.comfortable, data.valid, data.ready, data.request_operator,
+    data.new_shift_line.size());
 }
 
 void StaticObstacleAvoidanceModule::fillEgoStatus(
