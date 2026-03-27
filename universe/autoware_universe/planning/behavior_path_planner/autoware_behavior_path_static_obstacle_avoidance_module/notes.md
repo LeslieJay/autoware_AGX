@@ -168,10 +168,18 @@ ros2 topic echo /planning/.../behavior_path_planner/debug/module_status
 1.1.9 更新存储的障碍物并将参考路径设置为基础路径 // updateStoredObjects
 
 1.2 更新偏移线并检查安全性 // fillShiftLine
-1.2.1 创建候选偏移线
+1.2.0 根据最新data，生成 AvoidOutline // generator_.update(avoid_data_, debug_data_)
+1.2.1 创建候选偏移线  //     generator_.generate(data, debug)
 1.2.2 验证新偏移线的有效性
-1.2.3 设置新的偏移线
-1.2.3 设置新的偏移线
+1.2.3 添加新的偏移线
+1.2.4 基于参考路径得到偏移路径，路径上所有点的偏移量甚至为0
+1.2.5 得到候选路径  // path_shifter.generate(&spline_shift_path, true, SHIFT_TYPE::SPLINE) -> generateCandidateShiftLine(偏移线合并，去噪)
+
+1.3 fillEgoStatus // 是一个避障决策状态机，负责在“避障 / 让行 / 停车”之间做最终决策，并处理外部强制控制与安全约束
+
+1.4 决定是否需要执行  
+
+1.5 得到最终的组件输出结果
 
 ### 偏移曲线生成全流程
 

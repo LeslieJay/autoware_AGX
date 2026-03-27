@@ -145,7 +145,7 @@ AvoidOutlines ShiftLineGenerator::generateAvoidOutline(
 
     // nominal case. avoidable.
     if (has_enough_distance) {
-      return std::make_pair(desire_shift_length, avoidance_distance);
+      return std::make_pair(desire_shift_length, avoidance_distance);// (横向偏移距离，纵向避让距离)
     }
 
     if (!isBestEffort(parameters_->policy_lateral_margin)) {

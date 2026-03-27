@@ -2841,87 +2841,19 @@ Visualization Manager:
                 Debug:
                   Control: true
                   Localization:
-                    "": true
+                    EKFPoseHistory: true
+                    NDT pointclouds: true
+                    NDTLoadedPCDMap: true
+                    NDTPoseHistory: true
                     Value: true
                   Map: true
                   Perception:
                     "": true
                     Value: true
                   Planning:
-                    Debug:
-                      BehaviorPathPlanner:
-                        Arrow: true
-                        GoalPlanner: true
-                        LaneFollowing: true
-                        LeftLaneChange: true
-                        RightLaneChange: true
-                        SideShift: true
-                        StartPlanner: true
-                        StaticObstacleAvoidance: true
-                        Value: true
-                      MotionVelocityPlanner:
-                        DynamicObstacleStop: true
-                        ObstacleCruise: true
-                        ObstacleSlowDown: true
-                        ObstacleStop: true
-                        ObstacleVelocityLimiter: true
-                        OutOfLane: true
-                        RunOut: true
-                        Value: true
-                      Value: true
-                    Info:
-                      BehaviorPathPlanner:
-                        Info (AvoidanceByLC): true
-                        Info (DynamicObstacleAvoidance): true
-                        Info (ExtLaneChangeLeft): true
-                        Info (ExtLaneChangeRight): true
-                        Info (GoalPlanner): true
-                        Info (LaneChangeLeft): true
-                        Info (LaneChangeRight): true
-                        Info (StartPlanner): true
-                        Info (StaticObstacleAvoidance): true
-                        Value: true
-                      BehaviorVelocityPlanner:
-                        Blind Spot: true
-                        Crosswalk: true
-                        DetectionArea: true
-                        DynamicObstacleAvoidance: true
-                        Intersection: true
-                        NoDrivableLane: true
-                        NoStoppingArea: true
-                        OcclusionSpot: true
-                        Roundabout: true
-                        SpeedBump: true
-                        StopLine: true
-                        TrafficLight: true
-                        Value: true
-                        VirtualTrafficLight: true
-                      MotionVelocityPlanner: true
-                      Objects Of Interest:
-                        AvoidanceByLCLeft: true
-                        AvoidanceByLCRight: true
-                        AvoidanceLeft: true
-                        AvoidanceRight: true
-                        BlindSpot: true
-                        Crosswalk: true
-                        DetectionArea: true
-                        GoalPlanner: true
-                        Intersection: true
-                        LaneChangeLeft: true
-                        LaneChangeRight: true
-                        NoStoppingArea: true
-                        ObstacleCruise: true
-                        Roundabout: true
-                        RunOut: true
-                        StartPlanner: true
-                        TrafficLight: true
-                        Value: true
-                      ObstacleAvoidance: true
-                      SurroundObstacleChecker:
-                        Footprint: true
-                        FootprintOffset: true
-                        FootprintRecoverOffset: true
-                        SurroundObstacleCheck: true
+                    "":
+                      "":
+                        "": true
                         Value: true
                       Value: true
                     Value: true
@@ -2931,10 +2863,7 @@ Visualization Manager:
                     Value: true
                   Value: true
                   Vehicle:
-                    Debug: true
-                    Info:
-                      AccelerationMeter: true
-                      Value: true
+                    "": true
                     Value: true
                 Localization:
                   EKF:
@@ -4846,7 +4775,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 25.902538299560547
+      Scale: 9.306132316589355
       Target Frame: viewer
       Value: TopDownOrtho (rviz_default_plugins)
       X: 2.7551238536834717
