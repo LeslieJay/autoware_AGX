@@ -74,6 +74,7 @@
   <exec_depend>autoware_remaining_distance_time_calculator</exec_depend>
   <exec_depend>autoware_scenario_selector</exec_depend>
   <exec_depend>autoware_surround_obstacle_checker</exec_depend>
+  <exec_depend>autoware_motion_velocity_trailer_pedestrian_stop_module</exec_depend>
   <exec_depend>autoware_velocity_smoother</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>

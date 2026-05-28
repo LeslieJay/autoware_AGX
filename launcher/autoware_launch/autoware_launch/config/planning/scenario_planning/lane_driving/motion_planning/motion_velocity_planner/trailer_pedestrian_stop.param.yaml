@@ -1,0 +1,68 @@
+# trailer_pedestrian_stop 模块参数
+#
+# 数据流概要:
+#   1. 沿规划轨迹采样「牵引车 + 各节挂车」包络 → 碰撞检测
+#   2. 行人/自行车/unknown 经筛选后生成扫掠圆/预测路径包络
+#   3. 连续判撞超过 add_stop_duration_buffer → 插入停车点、virtual_wall
+#
+# 注: ego_longitudinal_offset / ego_rear_longitudinal_offset / ego_lateral_offset
+#     在运行时由车辆描述 (vehicle_info) 自动填入，不在此文件中配置。
+
+/**:
+  ros__parameters:
+    trailer_pedestrian_stop:
+      # ── 列车几何（RViz 蓝框 train_trailer_footprints、碰撞区域）──
+      trailer:
+        # 挂车节数。增大 → 列车更长、后方包络更远，侧面行人更易判撞，计算量略增
+        count: 5
+        # 单节挂车长度 [m]。增大 → 每节包络更长，纵向覆盖更大
+        length: 2.0
+        # 单节挂车宽度 [m]（不含 side_margin）。增大 → 横向包络更宽，侧面更易判撞
+        width: 1.2
+        # 节间铰接/间隙 [m]。增大 → 挂车中心间距变大，列车总长增加
+        hitch_gap: 0.3
+        # 列车横向安全余量 [m]，牵引车与每节挂车包络各加 2×此值。增大 → 更容易触发停车（更保守）
+        side_margin: 0.8
+        # 最后一节挂车后方额外包络长度 [m]。增大 → 车尾后多一段检测区；0 表示不追加
+        rear_margin: 0.5
+
+      # ── 目标类型与行人包络（pedestrian_footprints、是否进入碰撞）──
+      pedestrian:
+        # 是否处理 PEDESTRIAN 标签。false → 行人完全不参与
+        enable_pedestrian: true
+        # 是否处理 BICYCLE 标签
+        enable_bicycle: false
+        # 是否处理 UNKNOWN 标签
+        enable_unknown: false
+        # 无预测路径时，按速度×时间向前扫掠的最大距离 [s]。增大 → 运动行人包络更长，更易判撞
+        time_horizon: 4.0
+        # 在物体尺寸外的圆半径余量 [m]。增大 → 行人包络更大，更易判撞
+        radius_margin: 0.6
+        # 使用 predicted_paths 的最低置信度。升高 → 更少走路径扫掠，可能漏检
+        min_predicted_path_confidence: 0.1
+        # 判定「有速度」的最小阈值 [m/s]，用于扫掠方向与 is_unavoidable
+        min_approach_speed: 0.1
+        # true: 优先用感知预测路径生成包络；false: 用当前位姿+time_horizon 扫掠
+        use_predicted_path: true
+        # true: 仅处理横向靠近列车的目标（需速度≥min_approach_speed）。false: 静止侧面行人也检测
+        require_lateral_approach: false
+        # 相对轨迹的最大横向关注距离 [m]。减小 → 远处侧面行人被忽略，不易误停
+        max_lateral_approach_distance: 6.0
+
+      # ── 停车决策（virtual_walls、轨迹 stop_points、planning_factors）──
+      stop:
+        # 在最早碰撞点前额外预留的停车距离 [m]。增大 → 停车点更早、离行人更远
+        stop_distance_buffer: 1.0
+        # 连续判撞达到该时间 [s] 后才认定需要停车。增大 → 更难触发/反应更慢；减小 → 更易触发，可能抖动
+        add_stop_duration_buffer: 0.2
+        # 丢失碰撞后继续维持停车决策的时间 [s]。增大 → 停车状态保持更久，不易反复起停
+        remove_stop_duration_buffer: 1.0
+        # 已处于停车决策时，列车/行人包络外扩 [m]，减少边界抖动。仅当 object_map 中已有 should_be_avoided 时生效
+        hysteresis: 1.0
+        # true: 忽略「横向远离列车」或「已在自车后方」的行人。false → 仍可能对其停车
+        ignore_unavoidable_collisions: false
+
+      # ── 轨迹采样（包络密度与计算量）──
+      sampling:
+        # 沿平滑轨迹重采样步长 [m]。减小 → 蓝框更密、漏检更少，CPU 更高；增大 → 可能漏检间隙
+        trajectory_step_length: 0.5

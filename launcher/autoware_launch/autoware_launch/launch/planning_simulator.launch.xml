@@ -9,10 +9,15 @@
   <!-- launch module preset -->
   <arg name="planning_module_preset" default="default" description="planning module preset"/>
   <arg name="control_module_preset" default="default" description="control module preset"/>
+  <arg
+    name="planning_input_objects_topic_name"
+    default="/test/pedestrian_objects"
+    description="PredictedObjects topic for motion_velocity_planner; dedicated topic avoids conflict with map_based_prediction when using pedestrian_pub.py"
+  />
 
   <!-- Optional parameters -->
   <!-- Map -->
-  <arg name="lanelet2_map_file" default="lanelet2_map_single_two.osm" description="lanelet2 map file name"/>
+  <arg name="lanelet2_map_file" default="lanelet2_map.osm" description="lanelet2 map file name"/>
   <arg name="pointcloud_map_file" default="pointcloud_map.pcd" description="pointcloud map file name"/>
   <let name="rviz_initial_pose_auto_fix_target" value="vector_map"/>
   <let name="gnss_initial_pose_auto_fix_target" value="vector_map"/>
@@ -82,6 +87,7 @@
       <!-- Auto mode setting-->
       <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
       <arg name="is_simulation" value="true"/>
+      <arg name="planning_input_objects_topic_name" value="$(var planning_input_objects_topic_name)"/>
     </include>
   </group>
 

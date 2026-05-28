@@ -61,14 +61,14 @@ void LaneChangeInterface::processOnExit()
 
 bool LaneChangeInterface::isExecutionRequested() const
 {
-  RCLCPP_INFO(getLogger(), "[LaneChangeInterface::isExecutionRequested] Checking execution request");
+  // RCLCPP_INFO(getLogger(), "[LaneChangeInterface::isExecutionRequested] Checking execution request");
   
   const auto current_status = getCurrentStatus();
-  RCLCPP_INFO(getLogger(), "  - CurrentStatus: %d (0=RUNNING, 1=WAITING_APPROVAL, 2=SUCCESS, 3=FAILURE, 4=UNKNOWN)", 
-    static_cast<int>(current_status));
+  // RCLCPP_INFO(getLogger(), "  - CurrentStatus: %d (0=RUNNING, 1=WAITING_APPROVAL, 2=SUCCESS, 3=FAILURE, 4=UNKNOWN)", 
+  //   static_cast<int>(current_status));
   
   if (current_status == ModuleStatus::RUNNING) {
-    RCLCPP_INFO(getLogger(), "  - Result: TRUE (Module is RUNNING)");
+    // RCLCPP_INFO(getLogger(), "  - Result: TRUE (Module is RUNNING)");
     return true;
   }
 

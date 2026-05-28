@@ -157,6 +157,32 @@ struct CruisePlanningParam
       node, "obstacle_cruise.cruise_planning.safe_distance_margin");
   }
 };
+
+struct PassiveCollisionHornParam
+{
+  bool enable{};
+  double ego_stop_velocity_threshold{};
+  double obstacle_reverse_velocity_threshold{};
+  double max_object_distance{};
+  double max_collision_time{};
+  double request_hold_time{};
+
+  PassiveCollisionHornParam() = default;
+  explicit PassiveCollisionHornParam(rclcpp::Node & node)
+  {
+    enable = get_or_declare_parameter<bool>(node, "obstacle_cruise.horn.enable");
+    ego_stop_velocity_threshold = get_or_declare_parameter<double>(
+      node, "obstacle_cruise.horn.ego_stop_velocity_threshold");
+    obstacle_reverse_velocity_threshold = get_or_declare_parameter<double>(
+      node, "obstacle_cruise.horn.obstacle_reverse_velocity_threshold");
+    max_object_distance =
+      get_or_declare_parameter<double>(node, "obstacle_cruise.horn.max_object_distance");
+    max_collision_time =
+      get_or_declare_parameter<double>(node, "obstacle_cruise.horn.max_collision_time");
+    request_hold_time =
+      get_or_declare_parameter<double>(node, "obstacle_cruise.horn.request_hold_time");
+  }
+};
 }  // namespace autoware::motion_velocity_planner
 
 #endif  // PARAMETERS_HPP_

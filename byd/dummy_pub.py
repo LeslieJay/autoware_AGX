@@ -43,24 +43,41 @@ class LiveObstaclePublisher(Node):
 
         # --- 2. 运动学 (Kinematics) ---
 
+        ####################################### 可触发绕障的配置 #######################################
+
+        # obj.kinematics.pose_with_covariance.pose.position.x = 22.0
+        # obj.kinematics.pose_with_covariance.pose.position.y = -66.9
+        # obj.kinematics.pose_with_covariance.pose.position.z = -0.41
+
+        # obj.kinematics.pose_with_covariance.pose.orientation.x = 0.0
+        # obj.kinematics.pose_with_covariance.pose.orientation.y = 0.0
+        # obj.kinematics.pose_with_covariance.pose.orientation.z = 0.707
+        # obj.kinematics.pose_with_covariance.pose.orientation.w = -0.707
+
+        # 地图选择 lanelet2_map.osm 可触发绕障
+
+        ####################################### 可触发绕障的配置 #######################################
+
         ###### 单向-单车道
         # obj.kinematics.pose_with_covariance.pose.position.x = 17.029806137084961
         # obj.kinematics.pose_with_covariance.pose.position.y = 186.3141632080078
         # obj.kinematics.pose_with_covariance.pose.position.z = 3.646
 
         ###### 单向-双车道
-        # obj.kinematics.pose_with_covariance.pose.position.x = 14.029806137084961
-        # obj.kinematics.pose_with_covariance.pose.position.y = 180.3141632080078
-        # obj.kinematics.pose_with_covariance.pose.position.z = 3.646
-        obj.kinematics.pose_with_covariance.pose.position.x = -19.8
-        obj.kinematics.pose_with_covariance.pose.position.y = -0.5
-        obj.kinematics.pose_with_covariance.pose.position.z = 4.0
+        obj.kinematics.pose_with_covariance.pose.position.x = 22.0
+        # obj.kinematics.pose_with_covariance.pose.position.y = -46.9
+        obj.kinematics.pose_with_covariance.pose.position.y = -66.9
+        # obj.kinematics.pose_with_covariance.pose.position.y = -86.9
+        obj.kinematics.pose_with_covariance.pose.position.z = -0.41
+        # obj.kinematics.pose_with_covariance.pose.position.x = -19.8
+        # obj.kinematics.pose_with_covariance.pose.position.y = -4.0
+        # obj.kinematics.pose_with_covariance.pose.position.z = 4.0
 
         # 严格复制你提供的四元数
         obj.kinematics.pose_with_covariance.pose.orientation.x = 0.0
         obj.kinematics.pose_with_covariance.pose.orientation.y = 0.0
-        obj.kinematics.pose_with_covariance.pose.orientation.z = 0.0
-        obj.kinematics.pose_with_covariance.pose.orientation.w = 1.0
+        obj.kinematics.pose_with_covariance.pose.orientation.z = 0.707
+        obj.kinematics.pose_with_covariance.pose.orientation.w = -0.707
 
         # --- 3. 协方差 (Covariance) ---
         # 这是一个 6x6 的矩阵，展平为 36 个元素的数组

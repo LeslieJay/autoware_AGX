@@ -38,7 +38,7 @@
           <param from="$(var velocity_smoother_param_path)"/>
           <param from="$(var velocity_smoother_type_param_path)"/>
 
-          <param name="publish_debug_trajs" value="false"/>
+          <param name="publish_debug_trajs" value="true"/>
           <remap from="~/input/trajectory" to="/planning/scenario_planning/scenario_selector/trajectory"/>
           <remap from="~/output/trajectory" to="/planning/scenario_planning/velocity_smoother/trajectory"/>
 

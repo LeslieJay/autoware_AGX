@@ -209,10 +209,10 @@ void AvoidanceByLaneChange::fillAvoidanceTargetObjects(
         return utils::path_safety_checker::isPolygonOverlapLanelet(obj, lane, yaw_threshold);
       });
 
-  RCLCPP_INFO(
-    logger_, "[AvoidByLC] Objects: total=%zu, in_lane=%zu, out_lane=%zu",
-    planner_data_->dynamic_object->objects.size(), object_within_target_lane.objects.size(),
-    object_outside_target_lane.objects.size());
+  // RCLCPP_INFO(
+  //   logger_, "[AvoidByLC] Objects: total=%zu, in_lane=%zu, out_lane=%zu",
+  //   planner_data_->dynamic_object->objects.size(), object_within_target_lane.objects.size(),
+  //   object_outside_target_lane.objects.size());
 
   // Assume that the maximum allocation for data.other object is the sum of
   // objects_within_target_lane and object_outside_target_lane. The maximum allocation for

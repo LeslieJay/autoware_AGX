@@ -37,6 +37,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <std_msgs/msg/bool.hpp>
+
 namespace autoware::motion_velocity_planner
 {
 class ObstacleCruiseModule : public PluginModuleInterface
@@ -67,9 +69,11 @@ private:
   CommonParam common_param_;
   CruisePlanningParam cruise_planning_param_;
   ObstacleFilteringParam obstacle_filtering_param_;
+  PassiveCollisionHornParam passive_collision_horn_param_;
 
   // common publisher
   rclcpp::Publisher<Float32MultiArrayStamped>::SharedPtr debug_cruise_planning_info_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr horn_request_pub_;
 
   // module publisher
   std::unique_ptr<autoware::objects_of_interest_marker_interface::ObjectsOfInterestMarkerInterface>
@@ -83,6 +87,8 @@ private:
   std::vector<CruiseObstacle> prev_cruise_object_obstacles_;
   mutable std::shared_ptr<DebugData> debug_data_ptr_;
   bool need_to_clear_velocity_limit_{false};
+  bool last_horn_request_{false};
+  rclcpp::Time last_horn_request_time_{0, 0, RCL_ROS_TIME};
   mutable std::shared_ptr<autoware_utils::TimeKeeper> time_keeper_;
 
   std::unique_ptr<CruisePlannerInterface> create_cruise_planner(rclcpp::Node & node) const;
@@ -136,6 +142,10 @@ private:
   bool is_obstacle_crossing(
     const std::vector<TrajectoryPoint> & traj_points,
     const std::shared_ptr<PlannerData::Object> object) const;
+  bool should_request_horn(
+    const std::shared_ptr<const PlannerData> & planner_data,
+    const std::vector<TrajectoryPoint> & raw_trajectory_points) const;
+  void publish_horn_request(const bool request);
 };
 }  // namespace autoware::motion_velocity_planner
 

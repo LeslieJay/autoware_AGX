@@ -26,6 +26,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -84,6 +85,8 @@ VelocitySmootherNode::VelocitySmootherNode(const rclcpp::NodeOptions & node_opti
   pub_trajectory_steering_rate_limited_ =
     create_publisher<Trajectory>("~/debug/trajectory_steering_rate_limited", 1);
   pub_trajectory_resampled_ = create_publisher<Trajectory>("~/debug/trajectory_time_resampled", 1);
+  pub_trajectory_clipped_ = create_publisher<Trajectory>("~/debug/trajectory_clipped", 1);
+  pub_trajectory_applyed_ = create_publisher<Trajectory>("~/debug/trajectory_applyed", 1);
 
   external_velocity_limit_.velocity = node_param_.max_velocity;
   max_velocity_with_deceleration_ = node_param_.max_velocity;
@@ -667,16 +670,9 @@ bool VelocitySmootherNode::smoothVelocity(
   // Calculate initial motion for smoothing
   const auto [initial_motion, type] = calcInitialMotion(input, input_closest);
 
-  // Print initial motion for debug
-  // InitializeType {
-  //   EGO_VELOCITY = 0,
-  //   LARGE_DEVIATION_REPLAN = 1,
-  //   ENGAGING = 2,
-  //   NORMAL = 3,
-  // };
-  // RCLCPP_INFO(
-  //   get_logger(), "[初始] initial_motion: vel=%.3f m/s, acc=%.3f m/s2, type=%u",
-  //   initial_motion.vel, initial_motion.acc, static_cast<unsigned int>(type));
+  RCLCPP_INFO(
+    get_logger(), "[smoothVelocity] initial_motion: vel=%.3f m/s, acc=%.3f m/s2, type=%u",
+    initial_motion.vel, initial_motion.acc, static_cast<unsigned int>(type));
 
   // Lateral acceleration limit
   constexpr bool enable_smooth_limit = true;
@@ -725,6 +721,12 @@ bool VelocitySmootherNode::smoothVelocity(
   clipped.insert(
     clipped.end(), traj_resampled.begin() + traj_resampled_closest, traj_resampled.end());
 
+  {
+    auto tmp = clipped;
+    if (is_reverse_) flipVelocity(tmp);
+    pub_trajectory_clipped_->publish(toTrajectoryMsg(tmp));
+  }
+  
   // Set maximum acceleration before applying smoother. Depends on acceleration request from
   // external velocity limit
   const double smoother_max_acceleration =
@@ -744,6 +746,11 @@ bool VelocitySmootherNode::smoothVelocity(
     RCLCPP_WARN(get_logger(), "Fail to solve optimization.");
   }
 
+  {
+    auto tmp = traj_smoothed;
+    if (is_reverse_) flipVelocity(tmp);
+    pub_trajectory_applyed_->publish(toTrajectoryMsg(tmp));
+  }
   // Set 0 velocity after input-stop-point
   overwriteStopPoint(clipped, traj_smoothed);
 
@@ -762,6 +769,14 @@ bool VelocitySmootherNode::smoothVelocity(
   // Insert behind velocity for output's consistency
   insertBehindVelocity(traj_resampled_closest, type, traj_smoothed);
 
+  {
+    std::stringstream ss;
+    ss << "[smoothVelocity] traj_smoothed final (size=" << traj_smoothed.size() << ") velocity: ";
+    for (size_t i = 0; i < traj_smoothed.size(); ++i) {
+      ss << "[" << i << "]=" << traj_smoothed[i].longitudinal_velocity_mps << " ";
+    }
+    RCLCPP_INFO(get_logger(), "%s", ss.str().c_str());
+  }
   RCLCPP_DEBUG(get_logger(), "smoothVelocity : traj_smoothed.size() = %lu", traj_smoothed.size());
   if (publish_debug_trajs_) {
     {

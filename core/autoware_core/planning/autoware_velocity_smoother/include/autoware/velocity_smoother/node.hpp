@@ -79,10 +79,14 @@ struct Motion
   Motion(const double v, const double a) : vel(v), acc(a) {}
 };
 
+class CalcTrajectoryVelocityTestFixture;
+
 class VelocitySmootherNode : public rclcpp::Node
 {
 public:
   explicit VelocitySmootherNode(const rclcpp::NodeOptions & node_options);
+
+  friend class CalcTrajectoryVelocityTestFixture;
 
 private:
   rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_;
@@ -262,6 +266,8 @@ private:
   rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_vel_lim_;
   rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_latacc_filtered_;
   rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_steering_rate_limited_;
+  rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_clipped_;
+  rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_applyed_;
   rclcpp::Publisher<Trajectory>::SharedPtr pub_trajectory_resampled_;
   rclcpp::Publisher<Float32Stamped>::SharedPtr debug_closest_velocity_;
   rclcpp::Publisher<Float32Stamped>::SharedPtr debug_closest_acc_;

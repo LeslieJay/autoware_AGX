@@ -265,10 +265,33 @@ double SmootherBase::computeVelocityLimitFromSteerRate(
     base_param_.velocity_thresholds, base_param_.steering_angle_rate_limits, compute_velocity);
 }
 
+/**
+ * @brief Limit longitudinal velocity from lateral acceleration (curvature) constraints.
+ *
+ * Physical model: a_lat ≈ v^2 * κ, hence v_max = sqrt(a_lat_limit / κ).
+ *
+ * Processing steps:
+ *   1. Return input unchanged if fewer than 3 points.
+ *   2. Resample along arc length at points_interval (sample_ds or input_points_interval).
+ *   3. Estimate curvature κ with three-point circle fit over curvature_calculation_distance.
+ *   4. For each index i, take max |κ| in spatial window
+ *      [i - after_decel_index, i + before_decel_index] (early decel before curves).
+ *   5. Compute v_curvature_max from piecewise lateral_acceleration_limits vs velocity_thresholds.
+ *   6. If enable_smooth_limit, raise v_curvature_max using jerk-limited decel profile from (v0, a0).
+ *   7. Clamp longitudinal_velocity_mps to v_curvature_max (floor: min_curve_velocity).
+ *
+ * @param input Trajectory with longitudinal_velocity_mps per point.
+ * @param v0 Current ego longitudinal speed [m/s] (used when enable_smooth_limit is true).
+ * @param a0 Current ego longitudinal acceleration [m/s^2] (used when enable_smooth_limit is true).
+ * @param enable_smooth_limit If true, lower bound speed by a jerk/acceleration-feasible profile.
+ * @param use_resampling If true, resample at base_param_.sample_ds; otherwise use input spacing.
+ * @param input_points_interval Point spacing [m] when use_resampling is false.
+ * @return Trajectory with reduced speeds where lateral-g limits are exceeded.
+ */
 TrajectoryPoints SmootherBase::applyLateralAccelerationFilter(
-  const TrajectoryPoints & input, [[maybe_unused]] const double v0,
-  [[maybe_unused]] const double a0, [[maybe_unused]] const bool enable_smooth_limit,
-  const bool use_resampling, const double input_points_interval) const
+  const TrajectoryPoints & input, const double v0, const double a0,
+  const bool enable_smooth_limit, const bool use_resampling,
+  const double input_points_interval) const
 {
   autoware_utils_debug::ScopedTimeTrack st(__func__, *time_keeper_);
 
@@ -306,7 +329,7 @@ TrajectoryPoints SmootherBase::applyLateralAccelerationFilter(
     static_cast<size_t>(std::round(base_param_.decel_distance_before_curve / points_interval));
   const size_t after_decel_index =
     static_cast<size_t>(std::round(base_param_.decel_distance_after_curve / points_interval));
-
+  // 利用加速度和加加速度计算速度限制,目的是平滑速度变化,避免速度突变
   const auto latacc_min_vel_arr =
     enable_smooth_limit ? trajectory_utils::calcVelocityProfileWithConstantJerkAndAccelerationLimit(
                             output, v0, a0, base_param_.min_jerk, base_param_.max_accel,
@@ -339,6 +362,27 @@ TrajectoryPoints SmootherBase::applyLateralAccelerationFilter(
   return output;
 }
 
+/**
+ * @brief Limit longitudinal velocity from steering angle rate constraints.
+ *
+ * Physical model: steer_rate ≈ d(delta)/ds * v, with delta ≈ atan(wheel_base * κ).
+ * A piecewise steering_angle_rate_limits vs velocity_thresholds table yields v_max per segment.
+ *
+ * Processing steps:
+ *   1. Return input unchanged if fewer than 3 points.
+ *   2. Optionally resample via applyPreProcess (uniform points_interval).
+ *   3. Estimate curvature κ (three-point method over curvature_calculation_distance).
+ *   4. Per segment [i, i+1]: delta_i = atan(wheel_base * κ_i), ratio_i = |delta_{i+1} - delta_i| / ds.
+ *   5. Apply 3-point mean filter on ratio array to suppress noise.
+ *   6. Where |κ| >= curvature_threshold, map ratio to v_limit via computeVelocityLimitFromSteerRate.
+ *   7. If mean velocity of the segment exceeds v_limit, scale down velocities at i and i+1
+ *      (proportional to local_velocity_limit / mean_vel, floored by min_curve_velocity).
+ *
+ * @param input Trajectory with longitudinal_velocity_mps per point (typically after lateral-acc filter).
+ * @param use_resampling If true, resample at base_param_.sample_ds; otherwise use input spacing.
+ * @param input_points_interval Point spacing [m] when use_resampling is false.
+ * @return Trajectory with reduced speeds where steering-rate limits are exceeded.
+ */
 TrajectoryPoints SmootherBase::applySteeringRateLimit(
   const TrajectoryPoints & input, const bool use_resampling,
   const double input_points_interval) const

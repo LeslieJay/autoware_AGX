@@ -129,3 +129,11 @@
         # hysteresis for cruise and stop
         obstacle_velocity_threshold_from_cruise : 3.0 # stop planning is executed to the obstacle whose velocity is less than this value [m/s]
         obstacle_velocity_threshold_to_cruise : 3.5 # stop planning is executed to the obstacle whose velocity is less than this value [m/s]
+
+      horn:
+        enable: true
+        ego_stop_velocity_threshold: 0.1
+        obstacle_reverse_velocity_threshold: 0.1
+        max_object_distance: 15.0
+        max_collision_time: 3.0
+        request_hold_time: 1.0

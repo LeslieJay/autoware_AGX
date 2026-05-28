@@ -17,6 +17,7 @@
 #include <autoware_test_utils/autoware_test_utils.hpp>
 
 #include <gtest/gtest.h>
+#include <std_msgs/msg/bool.hpp>
 
 #include <memory>
 #include <string>
@@ -159,4 +160,76 @@ TEST_F(PlanningFactorTest, TestWithPredictedObjects)
   EXPECT_NEAR(safety_factor.points.front().y, initial_pose.position.y, 1.0);
   EXPECT_NEAR(safety_factor.points.front().z, initial_pose.position.z, 1.0);
   EXPECT_EQ(safety_factor.object_id, car.object_id);
+}
+
+TEST_F(PlanningFactorTest, TestPassiveCollisionHornRequest)
+{
+  InitializeEgoData();
+  odometry_.twist.twist.linear.x = 0.0;
+  for (auto & point : trajectory_.points) {
+    point.longitudinal_velocity_mps = 0.0;
+  }
+
+  autoware_perception_msgs::msg::PredictedObject car;
+  car.existence_probability = 1.0;
+
+  autoware_perception_msgs::msg::ObjectClassification classification;
+  classification.label = autoware_perception_msgs::msg::ObjectClassification::CAR;
+  classification.probability = 1.0;
+  car.classification.resize(1);
+  car.classification.at(0) = classification;
+
+  geometry_msgs::msg::Pose initial_pose;
+  initial_pose.position.x = 2.0;
+  initial_pose.position.y = 0.0;
+  initial_pose.position.z = 0.0;
+  initial_pose.orientation.w = 1.0;
+  car.kinematics.initial_pose_with_covariance.pose = initial_pose;
+
+  geometry_msgs::msg::Twist initial_twist;
+  initial_twist.linear.x = -1.0;
+  initial_twist.linear.y = 0.0;
+  car.kinematics.initial_twist_with_covariance.twist = initial_twist;
+
+  car.shape.type = autoware_perception_msgs::msg::Shape::BOUNDING_BOX;
+  car.shape.dimensions.x = 5.0;
+  car.shape.dimensions.y = 2.0;
+  car.shape.dimensions.z = 1.8;
+
+  car.kinematics.predicted_paths.resize(1);
+  auto & predicted_path = car.kinematics.predicted_paths.front();
+  predicted_path.path.resize(20);
+  predicted_path.time_step = rclcpp::Duration::from_seconds(0.2);
+  predicted_path.confidence = 1.0;
+  for (size_t i = 0; i < predicted_path.path.size(); ++i) {
+    predicted_path.path[i].position.x = initial_pose.position.x + i * 0.2 * initial_twist.linear.x;
+    predicted_path.path[i].position.y = initial_pose.position.y;
+    predicted_path.path[i].position.z = initial_pose.position.z;
+    predicted_path.path[i].orientation = initial_pose.orientation;
+  }
+
+  autoware_perception_msgs::msg::PredictedObjects predicted_objects;
+  predicted_objects.header.frame_id = "map";
+  predicted_objects.header.stamp = node_->get_clock()->now();
+  car.kinematics.initial_pose_with_covariance.pose = initial_pose;
+  predicted_objects.objects.push_back(car);
+
+  auto planner_data = std::make_shared<autoware::motion_velocity_planner::PlannerData>(*node_);
+  planner_data->current_odometry = odometry_;
+  planner_data->process_predicted_objects(predicted_objects);
+
+  bool received_horn_request = false;
+  auto sub = node_->create_subscription<std_msgs::msg::Bool>(
+    "/test_node/obstacle_cruise/horn_request", 10,
+    [&received_horn_request](const std_msgs::msg::Bool::ConstSharedPtr msg) {
+      received_horn_request = received_horn_request || msg->data;
+    });
+
+  for (size_t i = 0; i < 5; ++i) {
+    module_->plan(trajectory_.points, trajectory_.points, planner_data);
+    rclcpp::spin_some(node_);
+  }
+
+  (void)sub;
+  EXPECT_TRUE(received_horn_request);
 }

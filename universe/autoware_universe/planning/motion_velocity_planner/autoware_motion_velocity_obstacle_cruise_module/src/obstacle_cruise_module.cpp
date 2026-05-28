@@ -25,8 +25,10 @@
 #include <autoware_utils/ros/update_param.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -93,11 +95,13 @@ void ObstacleCruiseModule::init(rclcpp::Node & node, const std::string & module_
   common_param_ = CommonParam(node);
   cruise_planning_param_ = CruisePlanningParam(node);
   obstacle_filtering_param_ = ObstacleFilteringParam(node);
+  passive_collision_horn_param_ = PassiveCollisionHornParam(node);
 
   // common publisher
   virtual_wall_publisher_ =
     node.create_publisher<MarkerArray>("~/obstacle_cruise/virtual_walls", 1);
   debug_publisher_ = node.create_publisher<MarkerArray>("~/obstacle_cruise/debug_markers", 1);
+  horn_request_pub_ = node.create_publisher<std_msgs::msg::Bool>("~/obstacle_cruise/horn_request", 1);
 
   // module publisher
   debug_cruise_planning_info_pub_ =
@@ -148,6 +152,7 @@ VelocityPlanningResult ObstacleCruiseModule::plan(
   [[maybe_unused]] const auto cruise_traj_points = cruise_planner_->plan_cruise(
     planner_data, raw_trajectory_points, cruise_obstacles, debug_data_ptr_,
     planning_factor_interface_, result.velocity_limit);
+  publish_horn_request(should_request_horn(planner_data, raw_trajectory_points));
 
   // clear velocity limit if necessary
   if (result.velocity_limit) {
@@ -328,6 +333,62 @@ void ObstacleCruiseModule::publish_debug_info()
 
   // 4. objects of interest
   objects_of_interest_marker_interface_->publishMarkerArray();
+}
+
+bool ObstacleCruiseModule::should_request_horn(
+  const std::shared_ptr<const PlannerData> & planner_data,
+  const std::vector<TrajectoryPoint> & raw_trajectory_points) const
+{
+  if (!passive_collision_horn_param_.enable || raw_trajectory_points.empty()) {
+    return false;
+  }
+
+  const auto ego_speed = std::abs(planner_data->current_odometry.twist.twist.linear.x);
+  if (ego_speed > passive_collision_horn_param_.ego_stop_velocity_threshold) {
+    return false;
+  }
+
+  for (const auto & object : planner_data->objects) {
+    const auto lon_distance = object->get_dist_from_ego_longitudinal(
+      raw_trajectory_points, planner_data->current_odometry.pose.pose.position);
+    if (lon_distance < 0.0 || lon_distance > passive_collision_horn_param_.max_object_distance) {
+      continue;
+    }
+
+    const auto lon_velocity = object->get_lon_vel_relative_to_traj(raw_trajectory_points);
+    if (lon_velocity > -passive_collision_horn_param_.obstacle_reverse_velocity_threshold) {
+      continue;
+    }
+
+    const auto closing_speed = std::max(1e-3, -lon_velocity);
+    const auto collision_time_estimate = lon_distance / closing_speed;
+    if (collision_time_estimate <= passive_collision_horn_param_.max_collision_time) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void ObstacleCruiseModule::publish_horn_request(const bool request)
+{
+  const auto now = clock_->now();
+  bool output = request;
+
+  if (request) {
+    last_horn_request_ = true;
+    last_horn_request_time_ = now;
+  } else if (
+    last_horn_request_ &&
+    (now - last_horn_request_time_).seconds() <= passive_collision_horn_param_.request_hold_time) {
+    output = true;
+  } else {
+    last_horn_request_ = false;
+  }
+
+  std_msgs::msg::Bool msg;
+  msg.data = output;
+  horn_request_pub_->publish(msg);
 }
 
 std::optional<CruiseObstacle> ObstacleCruiseModule::create_cruise_obstacle(
