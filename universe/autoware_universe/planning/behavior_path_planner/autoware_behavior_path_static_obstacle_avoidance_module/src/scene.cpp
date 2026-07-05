@@ -28,6 +28,7 @@
 #include <autoware_lanelet2_extension/utility/utilities.hpp>
 #include <autoware_utils/geometry/geometry.hpp>
 #include <autoware_utils/system/time_keeper.hpp>
+#include <magic_enum.hpp>
 
 #include <algorithm>
 #include <limits>
@@ -72,6 +73,55 @@ lanelet::BasicLineString3d toLineString3d(const std::vector<Point> & bound)
   std::for_each(
     bound.begin(), bound.end(), [&](const auto & p) { ret.emplace_back(p.x, p.y, p.z); });
   return ret;
+}
+
+const char * toObjectInfoName(const ObjectInfo info)
+{
+  return magic_enum::enum_name(info).data();
+}
+
+const char * toAvoidanceStateName(const AvoidanceState state)
+{
+  return magic_enum::enum_name(state).data();
+}
+
+const char * toObjectClassName(const uint8_t label)
+{
+  switch (label) {
+    case ObjectClassification::CAR:
+      return "CAR";
+    case ObjectClassification::TRUCK:
+      return "TRUCK";
+    case ObjectClassification::BUS:
+      return "BUS";
+    case ObjectClassification::TRAILER:
+      return "TRAILER";
+    case ObjectClassification::MOTORCYCLE:
+      return "MOTORCYCLE";
+    case ObjectClassification::BICYCLE:
+      return "BICYCLE";
+    case ObjectClassification::PEDESTRIAN:
+      return "PEDESTRIAN";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+void logAvoidanceTargetSummary(
+  const rclcpp::Logger & logger, rclcpp::Clock & clock, const ObjectDataArray & objects,
+  const char * stage)
+{
+  RCLCPP_WARN_THROTTLE(
+    logger, clock, 1000, "[AVOIDANCE_TARGET] stage=%s count=%zu", stage, objects.size());
+  for (const auto & o : objects) {
+    const auto label = utils::getHighestProbLabel(o.object.classification);
+    RCLCPP_WARN_THROTTLE(
+      logger, clock, 1000,
+      "[AVOIDANCE_TARGET] id=%s class=%s lon=%.2f lat=%.2f stop=%.2f avoid_req=%d "
+      "avoidable=%d stoppable=%d info=%s",
+      to_hex_string(o.object.object_id).c_str(), toObjectClassName(label), o.longitudinal, o.to_centerline, o.to_stop_line, o.avoid_required, o.is_avoidable,
+      o.is_stoppable, toObjectInfoName(o.info));
+  }
 }
 }  // namespace
 
@@ -357,6 +407,7 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
   // calculate various data for each target objects.
   fillAvoidanceTargetData(data.target_objects);
   fillAvoidanceTargetData(current_target_objects_snapshot);
+  logAvoidanceTargetSummary(getLogger(), *clock_, data.target_objects, "after_target_data");
 
   utils::static_obstacle_avoidance::updateStoredObjects(
     stored_objects_, current_target_objects_snapshot, clock_->now(), parameters_);
@@ -427,6 +478,11 @@ void StaticObstacleAvoidanceModule::fillAvoidanceTargetObjects(
 
     updateAvoidanceDebugData(debug_info_array);
   }
+
+  RCLCPP_WARN_THROTTLE(
+    getLogger(), *clock_, 1000,
+    "[AVOIDANCE_FILTER] targets=%zu others=%zu forward_range=%.1f", data.target_objects.size(),
+    data.other_objects.size(), forward_detection_range);
 }
 
 void StaticObstacleAvoidanceModule::fillAvoidanceTargetData(ObjectDataArray & objects) const
@@ -554,16 +610,17 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
   auto path_shifter = path_shifter_;
 
+  logAvoidanceTargetSummary(getLogger(), *clock_, data.target_objects, "before_shift_line");
+
   /**
    * STEP1: Create candidate shift lines.
-   * Merge rough shift lines, and extract new shift lines.
+   * Merge rough shift lines registered in generator_.update(), then extract RTC-pending lines.
    */
   data.new_shift_line = generator_.generate(data, debug);
 
   /**
-   * Step2: Validate new shift lines.
-   * Output new shift lines only when the avoidance path which is generated from them doesn't have
-   * huge offset from ego.
+   * STEP2: Validate new shift lines.
+   * Reject paths whose lateral offset from ego exceeds the execution threshold.
    */
   data.valid = isValidShiftLine(data.new_shift_line, path_shifter);
   const auto found_new_sl = data.new_shift_line.size() > 0;
@@ -571,16 +628,14 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
   data.found_avoidance_path = found_new_sl || registered;
 
   /**
-   * STEP3: Set new shift lines.
-   * If there are new shift points, these shift points are registered in path_shifter in order to
-   * generate candidate avoidance path.
+   * STEP3: Register new shift lines into path_shifter for candidate path generation.
    */
   if (!data.new_shift_line.empty()) {
     addNewShiftLines(path_shifter, data.new_shift_line);
   }
 
   /**
-   * STEP4: Generate avoidance path.
+   * STEP4: Generate spline-shifted candidate avoidance path.
    */
   ShiftedPath spline_shift_path =
     utils::static_obstacle_avoidance::toShiftedPath(data.reference_path);
@@ -591,9 +646,7 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
                           : utils::static_obstacle_avoidance::toShiftedPath(data.reference_path);
 
   /**
-   * STEP5: Check avoidance path safety.
-   * For each target objects and the objects in adjacent lanes,
-   * check that there is a certain amount of margin in the lateral and longitudinal direction.
+   * STEP5: Evaluate comfort, safety, readiness, and operator-approval requirements.
    */
   data.comfortable = helper_->isComfortable(data.new_shift_line);
   data.safe = isSafePath(data.candidate_path, debug);
@@ -603,10 +656,14 @@ void StaticObstacleAvoidanceModule::fillShiftLine(
   data.request_operator =
     is_operator_approval_required(data.candidate_path, debug) || avoidance_ready.second;// 强制改为 false
 
-  RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 1000,
-    "[AVOIDANCE_DEBUG] safe=%d comfortable=%d valid=%d ready=%d request_op=%d new_sl_size=%zu",
+  RCLCPP_WARN_THROTTLE(
+    getLogger(), *clock_, 1000,
+    "[AVOIDANCE_DEBUG] safe=%d comfortable=%d valid=%d ready=%d request_op=%d "
+    "new_sl_size=%zu targets=%zu found_path=%d candidate_pts=%zu registered_sl=%zu ego_shift=%.2f",
     data.safe, data.comfortable, data.valid, data.ready, data.request_operator,
-    data.new_shift_line.size());
+    data.new_shift_line.size(), data.target_objects.size(), data.found_avoidance_path,
+    data.candidate_path.path.points.size(), path_shifter.getShiftLines().size(),
+    helper_->getEgoLinearShift());
 }
 
 void StaticObstacleAvoidanceModule::fillEgoStatus(
@@ -614,6 +671,18 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
 {
   autoware_utils::ScopedTimeTrack st(__func__, *time_keeper_);
   data.state = getCurrentModuleState(data);
+
+  const auto log_ego_status = [&](const char * reason) {
+    const auto stop_obj_id = data.stop_target_object
+                               ? to_hex_string(data.stop_target_object->object.object_id)
+                               : "none";
+    RCLCPP_WARN_THROTTLE(
+      getLogger(), *clock_, 1000,
+      "[AVOIDANCE_EGO] state=%s stop_obj=%s avoid_req=%d yield_req=%d force_deact=%d "
+      "safe_sl=%zu safe=%d reason=%s",
+      toAvoidanceStateName(data.state), stop_obj_id.c_str(), data.avoid_required,
+      data.yield_required, data.force_deactivated, data.safe_shift_line.size(), data.safe, reason);
+  };
 
   /**
    * Find the nearest object that should be avoid. When the ego follows reference path,
@@ -642,6 +711,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
     data.candidate_path = helper_->getPreviousSplineShiftPath();
     RCLCPP_DEBUG_THROTTLE(
       getLogger(), *clock_, 500, "this module is locked now. keep current path.");
+    log_ego_status("output_path_locked");
     return;
   }
 
@@ -661,25 +731,27 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
     data.force_deactivated = true;
     RCLCPP_INFO_THROTTLE(
       getLogger(), *clock_, 3000, "this module is force deactivated. wait until reactivation");
+    log_ego_status("force_deactivated");
     return;
   }
 
   /**
-   * If the avoidance path is safe, use unapproved_new_sl for avoidance path generation.
+   * Safe path: use new shift lines directly without yield maneuver.
    */
   if (data.safe) {
     data.yield_required = false;
     data.safe_shift_line = data.new_shift_line;
+    log_ego_status("safe_path");
     return;
   }
 
   /**
-   * If the yield maneuver is disabled, use unapproved_new_sl for avoidance path generation even if
-   * the shift line is unsafe.
+   * Yield disabled: keep executing even when safety check fails.
    */
   if (!parameters_->enable_yield_maneuver) {
     data.yield_required = false;
     data.safe_shift_line = data.new_shift_line;
+    log_ego_status("yield_disabled");
     return;
   }
 
@@ -693,6 +765,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
     data.yield_required = false;
     data.safe_shift_line = data.new_shift_line;
     RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 500, "unsafe. but could not transit yield status.");
+    log_ego_status("cannot_yield");
     return;
   }
 
@@ -720,6 +793,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
   if (candidate_sl_force_activated("left") || candidate_sl_force_activated("right")) {
     data.yield_required = false;
     data.safe_shift_line = data.new_shift_line;
+    log_ego_status("candidate_force_activated");
     return;
   }
 
@@ -732,6 +806,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
     data.yield_required = false;
     data.safe_shift_line = data.new_shift_line;
     RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 5000, "unsafe but force executed");
+    log_ego_status("registered_force_activated");
     return;
   }
 
@@ -750,6 +825,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
   const auto approved_path_exist = !path_shifter_.getShiftLines().empty();
   if (approved_path_exist) {
     RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 5000, "unsafe. canceling approved path...");
+    log_ego_status("unsafe_cancel_approved");
     return;
   }
 
@@ -759,6 +835,7 @@ void StaticObstacleAvoidanceModule::fillEgoStatus(
    */
   {
     RCLCPP_WARN_THROTTLE(getLogger(), *clock_, 5000, "unsafe. transit yield maneuver...");
+    log_ego_status("unsafe_yield_maneuver");
   }
 }
 
@@ -849,10 +926,14 @@ bool StaticObstacleAvoidanceModule::isSafePath(
   const auto & p = planner_data_->parameters;
 
   if (force_deactivated_) {
+    RCLCPP_WARN_THROTTLE(
+      getLogger(), *clock_, 1000, "[AVOIDANCE_SAFETY] result=0 reason=force_deactivated");
     return false;
   }
 
   if (!parameters_->enable_safety_check) {
+    RCLCPP_DEBUG_THROTTLE(
+      getLogger(), *clock_, 3000, "[AVOIDANCE_SAFETY] result=1 reason=safety_check_disabled");
     return true;  // if safety check is disabled, it always return safe.
   }
 
@@ -883,6 +964,8 @@ bool StaticObstacleAvoidanceModule::isSafePath(
   }();
 
   if (!has_left_shift && !has_right_shift) {
+    RCLCPP_DEBUG_THROTTLE(
+      getLogger(), *clock_, 3000, "[AVOIDANCE_SAFETY] result=1 reason=no_lateral_shift");
     return true;
   }
 
@@ -893,6 +976,10 @@ bool StaticObstacleAvoidanceModule::isSafePath(
       avoid_data_, planner_data_, parameters_, has_left_shift, has_right_shift, debug);
 
   if (safety_check_target_objects.empty()) {
+    RCLCPP_DEBUG_THROTTLE(
+      getLogger(), *clock_, 3000, "[AVOIDANCE_SAFETY] result=1 reason=no_safety_targets "
+                                  "left_shift=%d right_shift=%d",
+      has_left_shift, has_right_shift);
     return true;
   }
 
@@ -942,6 +1029,13 @@ bool StaticObstacleAvoidanceModule::isSafePath(
           debug.collision_check, current_debug_data, false);
 
         safe_count_ = 0;
+        RCLCPP_WARN_THROTTLE(
+          getLogger(), *clock_, 1000,
+          "[AVOIDANCE_SAFETY] result=0 left_shift=%d right_shift=%d targets=%zu "
+          "fail_id=%s class=%s front=%d oncoming=%d safe_count=%zu",
+          has_left_shift, has_right_shift, safety_check_target_objects.size(),
+          to_hex_string(object.uuid).c_str(), toObjectClassName(object.classification.label),
+          is_object_front, is_object_oncoming, safe_count_);
         return false;
       }
     }
@@ -951,7 +1045,14 @@ bool StaticObstacleAvoidanceModule::isSafePath(
 
   safe_count_++;
 
-  return safe_ || safe_count_ > parameters_->hysteresis_factor_safe_count;
+  const auto is_safe = safe_ || safe_count_ > parameters_->hysteresis_factor_safe_count;
+  RCLCPP_WARN_THROTTLE(
+    getLogger(), *clock_, 1000,
+    "[AVOIDANCE_SAFETY] result=%d left_shift=%d right_shift=%d targets=%zu safe_count=%zu "
+    "hysteresis=%d",
+    is_safe, has_left_shift, has_right_shift, safety_check_target_objects.size(), safe_count_,
+    static_cast<int>(parameters_->hysteresis_factor_safe_count));
+  return is_safe;
 }
 
 PathWithLaneId StaticObstacleAvoidanceModule::extendBackwardLength(

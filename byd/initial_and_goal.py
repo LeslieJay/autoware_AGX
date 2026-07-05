@@ -9,6 +9,9 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 
+from autoware_adapi_v1_msgs.srv import ChangeOperationMode
+from autoware_vehicle_msgs.msg import Engage
+
 
 # ── 起始位姿 ──────────────────────────────────────────────────────────────────
 START_X = 23.241851806640625
@@ -30,6 +33,7 @@ GOAL_OW = 0.6928746556111375
 
 FRAME_ID = "map"
 INITIAL_POSE_TOPIC = "/initialpose"
+INITIAL_POSE_3D_TOPIC = "/initialpose3d"
 GOAL_TOPIC = "/planning/mission_planning/goal"
 WAIT_SUBSCRIBER_TIMEOUT_SEC = 10.0
 PUBLISH_SETTLE_SEC = 0.5
@@ -48,6 +52,9 @@ class InitAndGoalNode(Node):
         self._initial_pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, INITIAL_POSE_TOPIC, 10
         )
+        self._initial_pose_3d_pub = self.create_publisher(
+            PoseWithCovarianceStamped, INITIAL_POSE_3D_TOPIC, 10
+        )
         self._goal_pub = self.create_publisher(PoseStamped, GOAL_TOPIC, 10)
 
     def _wait_for_subscribers(self, publisher, topic_name: str) -> bool:
@@ -65,10 +72,7 @@ class InitAndGoalNode(Node):
         )
         return False
 
-    def _publish_initial_pose(self) -> bool:
-        if not self._wait_for_subscribers(self._initial_pose_pub, INITIAL_POSE_TOPIC):
-            return False
-
+    def _build_initial_pose_msg(self) -> PoseWithCovarianceStamped:
         initial_pose_msg = PoseWithCovarianceStamped()
         initial_pose_msg.header.frame_id = FRAME_ID
         initial_pose_msg.header.stamp = self.get_clock().now().to_msg()
@@ -80,19 +84,28 @@ class InitAndGoalNode(Node):
         initial_pose_msg.pose.pose.orientation.z = START_OZ
         initial_pose_msg.pose.pose.orientation.w = START_OW
 
-        # 6×6 协方差矩阵（行主序，索引 = row*6+col）
         initial_pose_msg.pose.covariance[0] = COV_XY
         initial_pose_msg.pose.covariance[7] = COV_XY
         initial_pose_msg.pose.covariance[14] = COV_Z
         initial_pose_msg.pose.covariance[21] = COV_ROLL_PITCH
         initial_pose_msg.pose.covariance[28] = COV_ROLL_PITCH
         initial_pose_msg.pose.covariance[35] = COV_YAW
+        return initial_pose_msg
 
+    def _publish_initial_pose(self) -> bool:
+        if not self._wait_for_subscribers(self._initial_pose_pub, INITIAL_POSE_TOPIC):
+            return False
+
+        initial_pose_msg = self._build_initial_pose_msg()
         self._initial_pose_pub.publish(initial_pose_msg)
         self.get_logger().info(
             f"已发布初始位姿到 {INITIAL_POSE_TOPIC}: "
             f"pos=({START_X:.2f}, {START_Y:.2f}, {START_Z:.2f})"
         )
+
+        if self._wait_for_subscribers(self._initial_pose_3d_pub, INITIAL_POSE_3D_TOPIC):
+            self._initial_pose_3d_pub.publish(initial_pose_msg)
+            self.get_logger().info(f"已发布初始位姿到 {INITIAL_POSE_3D_TOPIC}")
         return True
 
     def _publish_goal(self) -> bool:
@@ -123,6 +136,37 @@ class InitAndGoalNode(Node):
 
         rclpy.spin_once(self, timeout_sec=PUBLISH_SETTLE_SEC)
         self._publish_goal()
+        # 等待规划/诊断就绪后再切换 AUTONOMOUS
+        for _ in range(15):
+            rclpy.spin_once(self, timeout_sec=1.0)
+        self._engage_autonomous()
+
+    def _engage_autonomous(self) -> None:
+        client = self.create_client(ChangeOperationMode, "/api/operation_mode/change_to_autonomous")
+        for attempt in range(5):
+            if not client.wait_for_service(timeout_sec=3.0):
+                continue
+            future = client.call_async(ChangeOperationMode.Request())
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            if future.result() and future.result().status.success:
+                self.get_logger().info("已切换至 AUTONOMOUS 模式")
+                break
+            self.get_logger().warn(
+                f"切换 AUTONOMOUS 失败 (attempt {attempt + 1}/5)，等待后重试..."
+            )
+            for _ in range(5):
+                rclpy.spin_once(self, timeout_sec=1.0)
+        else:
+            self.get_logger().warn("切换 AUTONOMOUS 模式最终失败，请手动调用 change_to_autonomous")
+
+        engage_pub = self.create_publisher(Engage, "/vehicle/engage", 10)
+        deadline = self.get_clock().now() + Duration(seconds=3.0)
+        while rclpy.ok() and self.get_clock().now() < deadline:
+            if engage_pub.get_subscription_count() > 0:
+                break
+            rclpy.spin_once(self, timeout_sec=0.1)
+        engage_pub.publish(Engage(engage=True))
+        self.get_logger().info("已发布 /vehicle/engage: true")
 
 
 def main():

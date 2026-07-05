@@ -24,6 +24,7 @@
   <depend>libboost-dev</depend>
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
   <depend>tf2</depend>
   <depend>visualization_msgs</depend>
 

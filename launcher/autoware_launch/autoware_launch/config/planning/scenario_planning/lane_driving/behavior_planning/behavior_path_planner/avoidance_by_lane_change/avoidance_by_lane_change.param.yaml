@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     avoidance_by_lane_change:
-      execute_object_longitudinal_margin: 20.0     # Reduced for low-speed AGV in closed park
+      execute_object_longitudinal_margin: 15.0     # [m] sim: min longitudinal dist to trigger AvoidByLC
       execute_only_when_lane_change_finish_before_object: false  # Stricter safety for AGV
 
       # avoidance is performed for the object type with true

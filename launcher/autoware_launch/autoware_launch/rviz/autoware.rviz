@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Map1
         - /Sensing1/LiDAR1/ConcatenatePointCloud1/Autocompute Value Bounds1
         - /Planning1
         - /Planning1/ScenarioPlanning1
@@ -201,24 +202,17 @@ Visualization Manager:
           Use rainbow: false
           Value: true
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: Lanelet2VectorMap
           Namespaces:
-            center_lane_line: true
-            center_line_arrows: true
-            lane_start_bound: true
-            lanelet direction: true
-            lanelet_id: true
-            left_lane_bound: true
-            right_lane_bound: true
-            road_lanelets: true
+            {}
           Topic:
             Depth: 5
             Durability Policy: Transient Local
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /map/vector_map_marker
-          Value: true
+          Value: false
       Enabled: true
       Name: Map
     - Class: rviz_common/Group
@@ -2839,12 +2833,96 @@ Visualization Manager:
                     Value: true
                   Map: true
                   Perception:
-                    "": true
+                    CameraLidarFusion(purple): true
+                    Centerpoint(red1): true
+                    CenterpointROIFusion(red2): true
+                    CenterpointValidator(red3): true
+                    Detection(yellow): true
+                    DetectionByTracker(orange): true
+                    PointPainting(light_green1): true
+                    PointPaintingROIFusion(light_green2): true
+                    PointPaintingValidator(light_green3): true
+                    Prediction(light_blue): true
+                    RadarFarObjects(white): true
+                    Tracking(green): true
                     Value: true
                   Planning:
-                    "":
-                      "":
-                        "": true
+                    Debug:
+                      BehaviorPathPlanner:
+                        Arrow: true
+                        GoalPlanner: true
+                        LaneFollowing: true
+                        LeftLaneChange: true
+                        RightLaneChange: true
+                        SideShift: true
+                        StartPlanner: true
+                        StaticObstacleAvoidance: true
+                        Value: true
+                      MotionVelocityPlanner:
+                        DynamicObstacleStop: true
+                        ObstacleCruise: true
+                        ObstacleSlowDown: true
+                        ObstacleStop: true
+                        ObstacleVelocityLimiter: true
+                        OutOfLane: true
+                        RunOut: true
+                        TrailerPedestrianStop: true
+                        TrailerPedestrianStopVirtualWall: true
+                        Value: true
+                      Value: true
+                    Info:
+                      BehaviorPathPlanner:
+                        Info (AvoidanceByLC): true
+                        Info (DynamicObstacleAvoidance): true
+                        Info (ExtLaneChangeLeft): true
+                        Info (ExtLaneChangeRight): true
+                        Info (GoalPlanner): true
+                        Info (LaneChangeLeft): true
+                        Info (LaneChangeRight): true
+                        Info (StartPlanner): true
+                        Info (StaticObstacleAvoidance): true
+                        Value: true
+                      BehaviorVelocityPlanner:
+                        Blind Spot: true
+                        Crosswalk: true
+                        DetectionArea: true
+                        DynamicObstacleAvoidance: true
+                        Intersection: true
+                        NoDrivableLane: true
+                        NoStoppingArea: true
+                        OcclusionSpot: true
+                        Roundabout: true
+                        SpeedBump: true
+                        StopLine: true
+                        TrafficLight: true
+                        Value: true
+                        VirtualTrafficLight: true
+                      MotionVelocityPlanner: true
+                      Objects Of Interest:
+                        AvoidanceByLCLeft: true
+                        AvoidanceByLCRight: true
+                        AvoidanceLeft: true
+                        AvoidanceRight: true
+                        BlindSpot: true
+                        Crosswalk: true
+                        DetectionArea: true
+                        GoalPlanner: true
+                        Intersection: true
+                        LaneChangeLeft: true
+                        LaneChangeRight: true
+                        NoStoppingArea: true
+                        ObstacleCruise: true
+                        Roundabout: true
+                        RunOut: true
+                        StartPlanner: true
+                        TrafficLight: true
+                        Value: true
+                      ObstacleAvoidance: true
+                      SurroundObstacleChecker:
+                        Footprint: true
+                        FootprintOffset: true
+                        FootprintRecoverOffset: true
+                        SurroundObstacleCheck: true
                         Value: true
                       Value: true
                     Value: true
@@ -4783,7 +4861,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0.5150012969970703
+      Angle: 1.6350007057189941
       Class: rviz_default_plugins/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -4793,11 +4871,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 0.28574249148368835
+      Scale: 0.0758260115981102
       Target Frame: viewer
       Value: TopDownOrtho (rviz_default_plugins)
-      X: -130.56723022460938
-      Y: -67.8394775390625
+      X: 28.93783950805664
+      Y: -18.652631759643555
     Saved:
       - Class: rviz_default_plugins/ThirdPersonFollower
         Distance: 18

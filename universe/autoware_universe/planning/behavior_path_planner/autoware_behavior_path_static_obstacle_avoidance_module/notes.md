@@ -1,3 +1,29 @@
+### 诊断结果（2026-06-01 仿真实测）
+
+**现象**：车在障碍物前停车，`static_obstacle_avoidance` 未进入 approved/candidate，仅 `goal_planner(RUNNING)`。
+
+**根因分层**：
+
+| 层级 | 结论 | 证据 |
+|------|------|------|
+| Layer0 感知 | 正常 | `/perception/object_recognition/objects` 有 UNKNOWN 目标 |
+| Layer1 过滤 | **主因** | debug marker: `TOO_NEAR_TO_GOAL`（障碍物距 goal < 20m） |
+| Layer1 过滤 | 次要 | `ratio:0.00`, `lateral:0.00`, `necessity:false`（中心线障碍物） |
+| Layer2 路径 | 未生成 | `path_candidate/static_obstacle_avoidance` points 为空 |
+| Layer5 下游 | **实际停车** | `planning_factors/obstacle_stop` 有 STOP factor (v=0) |
+| MRM | 排除 | `mrm_state: NORMAL(1)` |
+
+**已应用修复**：
+- param: `object_check_goal_distance=0`, `max_forward_distance=50`, `min_forward_distance=0`
+- param: `parked_vehicle.th_offset_from_centerline=0`, `th_shiftable_ratio=0`
+- `dummy_pub.py` 默认 `--mode ahead --ahead 15 --lateral 1.5`（障碍物跟随 ego 前方）
+- 配置文件 [static_obstacle_avoidance.param.yaml] 已同步
+
+**重启 dummy_pub**：
+```bash
+python3 src/byd/dummy_pub.py --mode ahead --ahead 15 --lateral 1.5
+```
+
 ### 调试步骤
 
 1. 检查路径是否存在

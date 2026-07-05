@@ -22,9 +22,12 @@
 #include <autoware/motion_velocity_planner_common/velocity_planning_result.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <std_msgs/msg/u_int8.hpp>
 
 namespace autoware::motion_velocity_planner
 {
@@ -51,6 +54,8 @@ public:
 private:
   visualization_msgs::msg::MarkerArray create_debug_marker_array();
   void create_virtual_walls();
+  trailer_pedestrian_stop::PlannerParam get_effective_params() const;
+  void setup_dynamic_trailer_count_subscription(rclcpp::Node & node);
 
   inline static const std::string ns_ = "trailer_pedestrian_stop";
   std::string module_name_;
@@ -58,6 +63,10 @@ private:
 
   trailer_pedestrian_stop::PlannerParam params_;
   trailer_pedestrian_stop::ObjectStopDecisionMap object_map_;
+
+  rclcpp::Subscription<std_msgs::msg::UInt8>::SharedPtr dynamic_trailer_count_sub_;
+  std::atomic<bool> has_dynamic_trailer_count_{false};
+  std::atomic<size_t> dynamic_trailer_count_{0};
 
   mutable trailer_pedestrian_stop::DebugData debug_data_;
 };

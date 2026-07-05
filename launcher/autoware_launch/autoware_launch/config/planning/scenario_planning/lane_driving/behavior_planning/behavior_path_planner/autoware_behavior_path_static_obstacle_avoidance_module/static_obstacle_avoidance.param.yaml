@@ -122,7 +122,7 @@
           motorcycle: false                             # [-] Disabled for closed park
           pedestrian: true                              # [-]
         # detection range
-        object_check_goal_distance: 20.0                # [m]
+        object_check_goal_distance: 0.0                 # [m] sim: allow avoidance near goal (was 20.0 → TOO_NEAR_TO_GOAL)
         object_check_return_pose_distance: 20.0         # [m]
         # lost object compensation
         max_compensation_time: 2.0
@@ -131,8 +131,8 @@
         # Optimized for low-speed AGV in closed park environment
         detection_area:
           static: false                                 # [-]
-          min_forward_distance: 8.0                     # [m] Reduced for low-speed navigation
-          max_forward_distance: 20.0                    # [m] Reduced for closed park
+          min_forward_distance: 0.0                     # [m] sim: detect obstacles closer than 8m
+          max_forward_distance: 50.0                    # [m] sim: was 20m → FURTHER_THAN_THRESHOLD for far dummy obstacles
           backward_distance: 3.0                        # [m] Reduced for enclosed area
 
         # filtering parking objects

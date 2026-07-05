@@ -11,11 +11,12 @@
   <arg name="control_module_preset" default="default" description="control module preset"/>
   <arg
     name="planning_input_objects_topic_name"
-    default="/test/pedestrian_objects"
-    description="PredictedObjects topic for motion_velocity_planner; dedicated topic avoids conflict with map_based_prediction when using pedestrian_pub.py"
+    default="/perception/object_recognition/objects"
+    description="PredictedObjects topic for planning modules. *测试行人靠近工装车的时候* Use /test/pedestrian_objects when running pedestrian_pub.py to avoid conflict with map_based_prediction."
   />
 
   <!-- Optional parameters -->
+  <arg name="log_level" default="info" description="ROS log level for behavior_planning_container: debug, info, warn, error, fatal"/>
   <!-- Map -->
   <arg name="lanelet2_map_file" default="lanelet2_map.osm" description="lanelet2 map file name"/>
   <arg name="pointcloud_map_file" default="pointcloud_map.pcd" description="pointcloud map file name"/>
@@ -88,6 +89,7 @@
       <arg name="enable_all_modules_auto_mode" value="$(var enable_all_modules_auto_mode)"/>
       <arg name="is_simulation" value="true"/>
       <arg name="planning_input_objects_topic_name" value="$(var planning_input_objects_topic_name)"/>
+      <arg name="log_level" value="$(var log_level)"/>
     </include>
   </group>
 

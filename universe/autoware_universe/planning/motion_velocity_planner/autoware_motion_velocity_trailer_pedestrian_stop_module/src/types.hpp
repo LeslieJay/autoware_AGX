@@ -36,7 +36,11 @@ using Rtree = boost::geometry::index::rtree<BoxIndexPair, boost::geometry::index
 
 struct TrailerParam
 {
+  /** Fallback when use_dynamic_count is false or no message received yet */
   size_t count{5};
+  /** When true, trailer.count is taken from dynamic_count_topic (UInt8) */
+  bool use_dynamic_count{false};
+  std::string dynamic_count_topic;
   double length{2.0};
   double width{1.2};
   double hitch_gap{0.3};

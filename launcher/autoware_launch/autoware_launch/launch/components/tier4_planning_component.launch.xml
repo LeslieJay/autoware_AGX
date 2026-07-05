@@ -6,6 +6,7 @@
   <arg name="is_simulation" default="false"/>
   <arg name="use_sim_time" default="false"/>
   <arg name="vehicle_model" default="sample_vehicle"/>
+  <arg name="log_level" default="info" description="ROS log level for behavior_planning_container: debug, info, warn, error, fatal"/>
 
   <!-- Input topic parameters for planning modules -->
   <arg name="planning_input_objects_topic_name" default="/perception/object_recognition/objects"/>
@@ -48,6 +49,14 @@
     <arg
       name="behavior_path_planner_static_obstacle_avoidance_module_param_path"
       value="$(var behavior_path_config_path)/autoware_behavior_path_static_obstacle_avoidance_module/static_obstacle_avoidance.param.yaml"
+    />
+    <arg
+      name="behavior_path_planner_simple_avoidance_module_param_path"
+      value="$(var behavior_path_config_path)/simple_avoidance/simple_avoidance.param.yaml"
+    />
+    <arg
+      name="behavior_path_planner_simple_lc_avoidance_module_param_path"
+      value="$(var behavior_path_config_path)/simple_lc_avoidance/simple_lc_avoidance.param.yaml"
     />
     <arg name="behavior_path_planner_avoidance_by_lc_module_param_path" value="$(var behavior_path_config_path)/avoidance_by_lane_change/avoidance_by_lane_change.param.yaml"/>
     <arg name="behavior_path_planner_sampling_planner_module_param_path" value="$(var behavior_path_config_path)/sampling_planner/sampling_planner.param.yaml"/>
@@ -122,5 +131,6 @@
     <arg name="planning_validator_trajectory_checker_param_path" value="$(var common_config_path)/planning_validator/trajectory_checker.param.yaml"/>
     <arg name="planning_validator_intersection_collision_checker_param_path" value="$(var common_config_path)/planning_validator/intersection_collision_checker.param.yaml"/>
     <arg name="planning_validator_rear_collision_checker_param_path" value="$(var common_config_path)/planning_validator/rear_collision_checker.param.yaml"/>
+    <arg name="log_level" value="$(var log_level)"/>
   </include>
 </launch>

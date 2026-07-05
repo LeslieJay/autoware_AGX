@@ -64,7 +64,7 @@ class LiveObstaclePublisher(Node):
         # obj.kinematics.pose_with_covariance.pose.position.z = 3.646
 
         ###### 单向-双车道
-        obj.kinematics.pose_with_covariance.pose.position.x = 22.0
+        obj.kinematics.pose_with_covariance.pose.position.x = 24.0
         # obj.kinematics.pose_with_covariance.pose.position.y = -46.9
         obj.kinematics.pose_with_covariance.pose.position.y = -66.9
         # obj.kinematics.pose_with_covariance.pose.position.y = -86.9
@@ -101,9 +101,9 @@ class LiveObstaclePublisher(Node):
         except AttributeError:
             obj.shape.type = 1
             
-        obj.shape.dimensions.x = 5.0    
-        obj.shape.dimensions.y = 6.0
-        obj.shape.dimensions.z = 2.0
+        obj.shape.dimensions.x = 2.5    
+        obj.shape.dimensions.y = 1.4
+        obj.shape.dimensions.z = 1.5
 
         msg.objects.append(obj)
         self.publisher_.publish(msg)

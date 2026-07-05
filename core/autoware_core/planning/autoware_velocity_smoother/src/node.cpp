@@ -670,9 +670,9 @@ bool VelocitySmootherNode::smoothVelocity(
   // Calculate initial motion for smoothing
   const auto [initial_motion, type] = calcInitialMotion(input, input_closest);
 
-  RCLCPP_INFO(
-    get_logger(), "[smoothVelocity] initial_motion: vel=%.3f m/s, acc=%.3f m/s2, type=%u",
-    initial_motion.vel, initial_motion.acc, static_cast<unsigned int>(type));
+  // RCLCPP_INFO(
+  //   get_logger(), "[smoothVelocity] initial_motion: vel=%.3f m/s, acc=%.3f m/s2, type=%u",
+  //   initial_motion.vel, initial_motion.acc, static_cast<unsigned int>(type));
 
   // Lateral acceleration limit
   constexpr bool enable_smooth_limit = true;
@@ -769,15 +769,15 @@ bool VelocitySmootherNode::smoothVelocity(
   // Insert behind velocity for output's consistency
   insertBehindVelocity(traj_resampled_closest, type, traj_smoothed);
 
-  {
-    std::stringstream ss;
-    ss << "[smoothVelocity] traj_smoothed final (size=" << traj_smoothed.size() << ") velocity: ";
-    for (size_t i = 0; i < traj_smoothed.size(); ++i) {
-      ss << "[" << i << "]=" << traj_smoothed[i].longitudinal_velocity_mps << " ";
-    }
-    RCLCPP_INFO(get_logger(), "%s", ss.str().c_str());
-  }
-  RCLCPP_DEBUG(get_logger(), "smoothVelocity : traj_smoothed.size() = %lu", traj_smoothed.size());
+  // {
+  //   std::stringstream ss;
+  //   ss << "[smoothVelocity] traj_smoothed final (size=" << traj_smoothed.size() << ") velocity: ";
+  //   for (size_t i = 0; i < traj_smoothed.size(); ++i) {
+  //     ss << "[" << i << "]=" << traj_smoothed[i].longitudinal_velocity_mps << " ";
+  //   }
+  //   RCLCPP_INFO(get_logger(), "%s", ss.str().c_str());
+  // }
+  // RCLCPP_DEBUG(get_logger(), "smoothVelocity : traj_smoothed.size() = %lu", traj_smoothed.size());
   if (publish_debug_trajs_) {
     {
       auto tmp = traj_lateral_acc_filtered;

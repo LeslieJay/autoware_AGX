@@ -13,8 +13,13 @@
     trailer_pedestrian_stop:
       # ── 列车几何（RViz 蓝框 train_trailer_footprints、碰撞区域）──
       trailer:
-        # 挂车节数。增大 → 列车更长、后方包络更远，侧面行人更易判撞，计算量略增
+        # 挂车节数（默认/回退值）。增大 → 列车更长、后方包络更远，侧面行人更易判撞，计算量略增
+        # 运行时可通过 ros2 param set 修改；或开启 use_dynamic_count 从话题订阅
         count: 5
+        # true: 从 dynamic_count_topic 动态载入挂车节数（std_msgs/UInt8）
+        use_dynamic_count: false
+        # 挂车节数话题（相对 motion_velocity_planner 节点，可用 ~/input/trailer_count）
+        dynamic_count_topic: "~/input/trailer_count"
         # 单节挂车长度 [m]。增大 → 每节包络更长，纵向覆盖更大
         length: 2.0
         # 单节挂车宽度 [m]（不含 side_margin）。增大 → 横向包络更宽，侧面更易判撞

@@ -37,13 +37,23 @@ namespace autoware::motion_velocity_planner
 {
 namespace
 {
+constexpr size_t kMaxTrailerCount = 32;
+
+size_t clamp_trailer_count(const int64_t count)
+{
+  return static_cast<size_t>(std::clamp(count, int64_t{0}, static_cast<int64_t>(kMaxTrailerCount)));
+}
+
 void declare_trailer_pedestrian_stop_params(
   rclcpp::Node & node, trailer_pedestrian_stop::PlannerParam & p, const std::string & ns)
 {
   using autoware_utils::get_or_declare_parameter;
   auto & trailer = p.trailer;
-  trailer.count = static_cast<size_t>(
-    get_or_declare_parameter<int64_t>(node, ns + ".trailer.count"));
+  trailer.count = clamp_trailer_count(get_or_declare_parameter<int64_t>(node, ns + ".trailer.count"));
+  trailer.use_dynamic_count =
+    get_or_declare_parameter<bool>(node, ns + ".trailer.use_dynamic_count");
+  trailer.dynamic_count_topic =
+    get_or_declare_parameter<std::string>(node, ns + ".trailer.dynamic_count_topic");
   trailer.length = get_or_declare_parameter<double>(node, ns + ".trailer.length");
   trailer.width = get_or_declare_parameter<double>(node, ns + ".trailer.width");
   trailer.hitch_gap = get_or_declare_parameter<double>(node, ns + ".trailer.hitch_gap");
@@ -108,6 +118,7 @@ void TrailerPedestrianStopModule::init(rclcpp::Node & node, const std::string & 
       "~/debug/" + ns_ + "/processing_time_ms", 1);
 
   declare_trailer_pedestrian_stop_params(node, params_, ns_);
+  setup_dynamic_trailer_count_subscription(node);
 
   const auto vehicle_info = autoware::vehicle_info_utils::VehicleInfoUtils(node).getVehicleInfo();
   params_.ego_lateral_offset =
@@ -122,8 +133,17 @@ void TrailerPedestrianStopModule::update_parameters(const std::vector<rclcpp::Pa
   using autoware_utils::update_param;
   auto & p = params_;
   int64_t trailer_count = static_cast<int64_t>(p.trailer.count);
-  update_param(parameters, ns_ + ".trailer.count", trailer_count);
-  p.trailer.count = static_cast<size_t>(trailer_count);
+  if (update_param(parameters, ns_ + ".trailer.count", trailer_count)) {
+    p.trailer.count = clamp_trailer_count(trailer_count);
+    RCLCPP_INFO(
+      logger_, "Updated %s.trailer.count to %zu", ns_.c_str(), p.trailer.count);
+  }
+  if (update_param(parameters, ns_ + ".trailer.use_dynamic_count", p.trailer.use_dynamic_count)) {
+    RCLCPP_INFO(
+      logger_, "Updated %s.trailer.use_dynamic_count to %s", ns_.c_str(),
+      p.trailer.use_dynamic_count ? "true" : "false");
+  }
+  update_param(parameters, ns_ + ".trailer.dynamic_count_topic", p.trailer.dynamic_count_topic);
   update_param(parameters, ns_ + ".trailer.length", p.trailer.length);
   update_param(parameters, ns_ + ".trailer.width", p.trailer.width);
   update_param(parameters, ns_ + ".trailer.hitch_gap", p.trailer.hitch_gap);
@@ -152,6 +172,44 @@ void TrailerPedestrianStopModule::update_parameters(const std::vector<rclcpp::Pa
     parameters, ns_ + ".stop.ignore_unavoidable_collisions", p.stop.ignore_unavoidable_collisions);
   update_param(
     parameters, ns_ + ".sampling.trajectory_step_length", p.sampling.trajectory_step_length);
+}
+
+void TrailerPedestrianStopModule::setup_dynamic_trailer_count_subscription(rclcpp::Node & node)
+{
+  if (!params_.trailer.use_dynamic_count) {
+    return;
+  }
+  if (params_.trailer.dynamic_count_topic.empty()) {
+    RCLCPP_WARN(
+      logger_,
+      "%s.trailer.use_dynamic_count is true but dynamic_count_topic is empty; using trailer.count",
+      ns_.c_str());
+    return;
+  }
+  dynamic_trailer_count_sub_ = node.create_subscription<std_msgs::msg::UInt8>(
+    params_.trailer.dynamic_count_topic, rclcpp::QoS(1),
+    [this](const std_msgs::msg::UInt8::SharedPtr msg) {
+      const auto count = clamp_trailer_count(static_cast<int64_t>(msg->data));
+      const auto previous = dynamic_trailer_count_.load();
+      dynamic_trailer_count_.store(count);
+      has_dynamic_trailer_count_.store(true);
+      if (count != previous) {
+        RCLCPP_INFO_THROTTLE(
+          logger_, *clock_, 3000, "Dynamic trailer count from topic: %zu", count);
+      }
+    });
+  RCLCPP_INFO(
+    logger_, "Subscribed to dynamic trailer count topic: %s",
+    params_.trailer.dynamic_count_topic.c_str());
+}
+
+trailer_pedestrian_stop::PlannerParam TrailerPedestrianStopModule::get_effective_params() const
+{
+  auto params = params_;
+  if (params.trailer.use_dynamic_count && has_dynamic_trailer_count_.load()) {
+    params.trailer.count = dynamic_trailer_count_.load();
+  }
+  return params;
 }
 
 void TrailerPedestrianStopModule::publish_processing_time(const double processing_time_ms)
@@ -191,12 +249,14 @@ VelocityPlanningResult TrailerPedestrianStopModule::plan(
     return result;
   }
 
+  const auto params = get_effective_params();
+
   stopwatch.tic();
   stopwatch.tic("preprocessing");
   trailer_pedestrian_stop::EgoData ego_data;
   ego_data.pose = planner_data->current_odometry.pose.pose;
   ego_data.trajectory = trailer_pedestrian_stop::resample_trajectory(
-    smoothed_trajectory_points, params_.sampling.trajectory_step_length);
+    smoothed_trajectory_points, params.sampling.trajectory_step_length);
   ego_data.trajectory = autoware::motion_utils::removeOverlapPoints(ego_data.trajectory);
   ego_data.first_trajectory_idx =
     autoware::motion_utils::findNearestSegmentIndex(ego_data.trajectory, ego_data.pose.position);
@@ -213,27 +273,27 @@ VelocityPlanningResult TrailerPedestrianStopModule::plan(
   ego_data.earliest_stop_pose = autoware::motion_utils::calcLongitudinalOffsetPose(
     ego_data.trajectory, ego_data.pose.position, min_stop_distance);
 
-  trailer_pedestrian_stop::make_train_trailer_footprint_rtree(ego_data, params_);
+  trailer_pedestrian_stop::make_train_trailer_footprint_rtree(ego_data, params);
   const double hysteresis =
     std::find_if(
       object_map_.begin(), object_map_.end(),
       [](const auto & pair) { return pair.second.should_be_avoided(); }) == object_map_.end()
       ? 0.0
-      : params_.stop.hysteresis;
+      : params.stop.hysteresis;
   const auto pedestrians = trailer_pedestrian_stop::filter_predicted_objects(
-    planner_data->objects, ego_data, params_, hysteresis);
+    planner_data->objects, ego_data, params, hysteresis);
 
   const auto preprocessing_duration_us = stopwatch.toc("preprocessing");
 
   stopwatch.tic("footprints");
   const auto pedestrian_footprints =
-    trailer_pedestrian_stop::make_pedestrian_footprints(pedestrians, params_, hysteresis);
+    trailer_pedestrian_stop::make_pedestrian_footprints(pedestrians, params, hysteresis);
   const auto footprints_duration_us = stopwatch.toc("footprints");
   stopwatch.tic("collisions");
   auto collisions = trailer_pedestrian_stop::find_collisions(
     ego_data, pedestrians, pedestrian_footprints);
   trailer_pedestrian_stop::update_object_map(
-    object_map_, collisions, clock_->now(), ego_data.trajectory, params_);
+    object_map_, collisions, clock_->now(), ego_data.trajectory, params);
   std::optional<geometry_msgs::msg::Point> earliest_collision =
     trailer_pedestrian_stop::find_earliest_collision(object_map_, ego_data);
   const auto collisions_duration_us = stopwatch.toc("collisions");
@@ -241,13 +301,13 @@ VelocityPlanningResult TrailerPedestrianStopModule::plan(
     const auto arc_length_diff = autoware::motion_utils::calcSignedArcLength(
       ego_data.trajectory, *earliest_collision, ego_data.pose.position);
     const auto can_stop_before_limit = arc_length_diff < min_stop_distance -
-                                                           params_.ego_longitudinal_offset -
-                                                           params_.stop.stop_distance_buffer;
+                                                           params.ego_longitudinal_offset -
+                                                           params.stop.stop_distance_buffer;
     const auto stop_pose = can_stop_before_limit
                              ? autoware::motion_utils::calcLongitudinalOffsetPose(
                                  ego_data.trajectory, *earliest_collision,
-                                 -params_.stop.stop_distance_buffer -
-                                   params_.ego_longitudinal_offset)
+                                 -params.stop.stop_distance_buffer -
+                                   params.ego_longitudinal_offset)
                              : ego_data.earliest_stop_pose;
     debug_data_.stop_pose = stop_pose;
     if (stop_pose) {
