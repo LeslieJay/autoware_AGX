@@ -40,3 +40,22 @@ In the future, to update all source repositories to their latest versions as def
 ```bash
 vcs pull src
 ```
+ros2 bag play "$BAG_DIR" \
+  -s sqlite3 \
+  -r 0.2 \
+  --clock 100 \
+  --topics \
+  /tf \
+  /localization/kinematic_state \
+  /localization/acceleration \
+  /localization/initialization_state \
+  /perception/object_recognition/objects \
+  /perception/occupancy_grid_map/map \
+  /vehicle/status/velocity_status \
+  /vehicle/status/steering_status \
+  /vehicle/status/gear_status \
+  /vehicle/status/control_mode \
+  /planning/mission_planning/route \
+  /planning/mission_planning/state \
+  /planning/route \
+  /planning/route_state
